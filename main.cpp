@@ -36,6 +36,7 @@ int main()
 	uint32_t sDown = 0;
 
 	sf::RenderWindow window(sf::VideoMode(800, 550), "NES Emulator");
+	window.setFramerateLimit(60);
 	while (window.isOpen())
 	{
 		sf::Event event;
@@ -62,6 +63,12 @@ int main()
 
 			updateRegistersText();
 		}
+		/*for (unsigned int i = 0; i < 1.789773 * 1000000 / 60; i++)
+		{
+			std::cout << emu.cycle();
+
+			updateRegistersText();
+		}*/
 
 		sf::Vector2f ws = (sf::Vector2f)window.getSize();
 

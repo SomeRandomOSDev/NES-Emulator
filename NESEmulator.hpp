@@ -67,45 +67,285 @@ public:
 		return readMemory1B(S + 0x100);
 	}
 
+	uint8_t readIndexedIndirectX(uint8_t d)
+	{
+		return readMemory1B(readMemory1B((d + X) % 256) + (readMemory1B((d + X + 1) % 256) * 256));
+	}
+
+	uint8_t readIndirectIndexedY(uint8_t d, bool& pageBoundaryCrossed)
+	{
+		uint16_t lo = readMemory1B(d);
+		pageBoundaryCrossed = lo > 0xff;
+		return readMemory1B(lo + (readMemory1B((d + 1) % 256) * 256) + Y);
+	}
+
+	uint8_t zeropageIndexedXAddress(uint8_t d)
+	{
+		return (d + X) % 256;
+	}
+
+	uint8_t zeropageIndexedYAddress(uint8_t d)
+	{
+		return (d + Y) % 256;
+	}
+
+	uint16_t absoluteIndexedYAddress(uint16_t a, bool pageBoundaryCrossed)
+	{
+		pageBoundaryCrossed = ((a >> 8) == ((a + Y) >> 8));
+		return a + Y;
+	}
+
 	std::string cycle()
 	{
 		std::string str = "";
 		if (cycles == 0)
 		{
 			uint8_t opcode = readMemory1B(PC);
-			uint8_t imm8 = readMemory1B(PC + 1);
-			uint16_t tmp;
+			uint8_t arg8 = readMemory1B(PC + 1);
+			uint16_t arg16 = (((uint16_t)readMemory1B(PC + 2) << 8) | arg8);
+			uint16_t tmp16;
+			uint8_t tmp8;
+			uint8_t PCPage = (PC >> 8);
+			bool pageBoundaryCrossed = false;
 
-			str += "Ox" + HEX(PC) + " : 0x" + HEX(opcode) + " : ";
+			str += "$" + HEX(PC) + " : $" + HEX(opcode) + " : ";
 
+			// opcodes to add : BRK
 			switch (opcode)
 			{
-			case 0xa9: // LDA imm8
-				str += "LDA #$" + HEX(imm8);
-				A = imm8;
+			case 0x01: // ORA (indirect, X)
+				str += "ORA ($" + HEX(arg8) + ", X)";
+
+				tmp8 = readIndexedIndirectX(arg8);
+
+				A |= tmp8;
+
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
+
+				cycles = 6;
+				PC += 2;
+
+				break;
+
+			case 0x05: // ORA zeropage
+				str += "ORA $" + HEX(arg8);
+
+				tmp8 = readMemory1B(arg8);
+
+				A |= tmp8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				cycles = 3;
+				PC += 2;
+
+				break;
+
+			case 0x06: // ASL zeropage
+				str += "ASL $" + HEX(arg8);
+
+				tmp8 = readMemory1B(arg8);
+
+				SET_FLAG(FLAG_C, tmp8 >> 7);
+
+				tmp8 <<= 1;
+
+				writeMemory1B(arg8, tmp8);
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				cycles = 5;
+				PC += 2;
+
+				break;
+
+			case 0x08: // PHP
+				str += "PHP";
+
+				tmp8 = (P | (1 << FLAG_B) | (1 << FLAG_1));
+				push(tmp8);
+
+				cycles = 3;
+				PC += 1;
+
+				break;
+
+			case 0x09: // ORA imm8
+				str += "ORA #$" + HEX(arg8);
+
+				A |= arg8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				cycles = 2;
+				PC += 2;
+
+				break;
+
+			case 0x0a: // ASL A
+				str += "ASL A";
+
+				SET_FLAG(FLAG_C, A >> 7);
+
+				A <<= 1;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				cycles = 2;
+				PC += 1;
+
+				break;
+
+			case 0x0d: // ORA absolute
+				str += "ORA $" + HEX(arg16);
+
+				A |= readMemory1B(arg16);
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				cycles = 4;
+				PC += 3;
+
+				break;
+
+			case 0x0e: // ASL absolute
+				str += "ASL $" + HEX(arg16);
+
+				tmp8 = readMemory1B(arg16);
+
+				SET_FLAG(FLAG_C, tmp8 >> 7);
+
+				tmp8 <<= 1;
+
+				writeMemory1B(arg16, tmp8);
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				cycles = 6;
+				PC += 3;
+
+				break;
+
+			case 0x10: // BPL relative
+				str += "BPL $" + HEX(arg8);
+
+				if (!GET_FLAG(FLAG_N))
+					PC += (int8_t)arg8;
+
+				cycles = 3 + (PCPage != (PC >> 8)); //2**
+				PC += 2;
+
+				break;
+				
+			case 0x11: // ORA (indirect), Y
+				str += "ORA ($" + HEX(arg8) + "), Y";
+
+				A |= readIndirectIndexedY(arg8, pageBoundaryCrossed);
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				cycles = 5 + pageBoundaryCrossed;
+				PC += 3;
+
+				break;
+
+			case 0x15: // ORA zeropage, X
+				str += "ORA $" + HEX(arg8) + ", X";
+
+				A |= readMemory1B(zeropageIndexedXAddress(arg8));
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				cycles = 4;
+				PC += 2;
+
+				break;
+
+			case 0x16: // ASL zeropage, X
+				str += "ASL $" + HEX(arg8) + ", X";
+
+				tmp8 = readMemory1B(zeropageIndexedXAddress(arg8));
+
+				SET_FLAG(FLAG_C, tmp8 >> 7);
+
+				tmp8 <<= 1;
+
+				writeMemory1B(zeropageIndexedXAddress(arg8), tmp8);
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				cycles = 6;
+				PC += 2;
+
+				break;
+
+			case 0x18: // CLC
+				str += "CLC";
+
+				SET_FLAG_0(FLAG_C);
+
+				cycles = 2;
+				PC += 1;
+
+				break;
+
+			case 0x19: // ORA absolute, Y
+				str += "ORA $" + HEX(arg16) + ", Y";
+
+				A |= readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				cycles = 4 + pageBoundaryCrossed;
+				PC += 3;
+
+				break;
+
+			case 0xa9: // LDA imm8
+				str += "LDA #$" + HEX(arg8);
+
+				A = arg8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
 				cycles = 2;
 				PC += 2;
 
 				break;
 
 			case 0x69: // ADC imm8
-				str += "ADC #$" + HEX(imm8);
-				tmp = (uint16_t)A + (uint16_t)imm8 + (uint16_t)GET_FLAG(FLAG_C);
-				A = (uint8_t)tmp;
-				SET_FLAG(FLAG_C, (tmp > 0xff));
-				SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)imm8) & ((uint16_t)A ^ (uint16_t)tmp)) >> 7));
-				SET_FLAG(FLAG_Z, (tmp == 0));
+				str += "ADC #$" + HEX(arg8);
+
+				tmp16 = (uint16_t)A + (uint16_t)arg8 + (uint16_t)GET_FLAG(FLAG_C);
+				A = (uint8_t)tmp16;
+
+				SET_FLAG(FLAG_C, (tmp16 > 0xff));
+				SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)arg8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+				SET_FLAG(FLAG_Z, (tmp16 == 0));
 				SET_FLAG(FLAG_N, (A >> 7));
+
 				cycles = 2;
 				PC += 2;
 
 				break;
 
 			case 0x85: // STA zeropage
-				str += "STA $" + HEX(imm8);
-				writeMemory1B(imm8, A);
+				str += "STA $" + HEX(arg8);
+
+				writeMemory1B(arg8, A);
+
 				cycles = 3;
 				PC += 2;
 
