@@ -1,9 +1,13 @@
 #pragma once
 
 #include <sstream>
+#include <random>
 
 namespace
 {
+	std::default_random_engine re((unsigned int)time(0));
+	std::uniform_int_distribution<int> randomBool{ 0, 1 };
+
 	std::string HEX(uint32_t value)
 	{
 		std::stringstream ss;

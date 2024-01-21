@@ -1,0 +1,7 @@
+﻿  NESEmulator.cpp
+  main.cpp
+  Génération de code en cours
+  Previous IPDB and IOBJ mismatch, fall back to full compilation.
+  All 329 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Fin de la génération du code
+  NESEmulator.vcxproj -> C:\Users\PC\Desktop\C++\ProjetsVisualStudio\NESEmulator\x64\Release\NESEmulator.exe

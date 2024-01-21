@@ -38,6 +38,7 @@ int main(int argc, char** argv)
 
 	sf::RenderWindow window(sf::VideoMode(800, 550), "NES Emulator");
 	window.setFramerateLimit(60);
+	window.setVerticalSyncEnabled(false);
 
 	while (window.isOpen())
 	{
@@ -74,7 +75,12 @@ int main(int argc, char** argv)
 
 		if (sDown == 1 || running)
 		{
-			emu.cycle();
+			//for(uint16_t i = 0; i < 1.789773 * 1000000 * 3; i++)
+			//for (uint16_t i = 0; i < 21.477272 * 1000000 / 4; i++)
+			while(!emu.frameFinished)
+				emu.cycle();
+
+			emu.frameFinished = false;
 
 			updateRegistersText();
 		}
@@ -111,7 +117,9 @@ int main(int argc, char** argv)
 		}
 
 		sf::RectangleShape screen(sf::Vector2f(ws.y, ws.y));
-		screen.setFillColor(sf::Color(0, 0, 0));
+		sf::Texture screenTex;
+		screenTex.loadFromImage(emu.screen);
+		screen.setTexture(&screenTex);
 		window.draw(screen);
 
 		window.display();

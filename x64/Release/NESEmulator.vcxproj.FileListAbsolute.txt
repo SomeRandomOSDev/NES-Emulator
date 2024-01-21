@@ -1,0 +1,1 @@
+C:\Users\PC\Desktop\C++\ProjetsVisualStudio\NESEmulator\x64\Release\NESEmulator.exe

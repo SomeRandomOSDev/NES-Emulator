@@ -5,6 +5,8 @@
 #include <fstream>
 #include <vector>
 
+#include <SFML/Graphics.hpp>
+
 #include "util.hpp"
 
 class NESEmulator
@@ -12,6 +14,9 @@ class NESEmulator
 public:
 	NESEmulator()
 	{ 
+		screen.create(256, 240);
+		screen2.create(256, 240);
+
 		powerUp();
 	}
 
@@ -26,15 +31,25 @@ public:
 			CPU_writeMemory1B(i, 0);
 		for (uint16_t i = 0x4010; i < 0x4013; i++)
 			CPU_writeMemory1B(i, 0);
-		cycles = 0;
+		CPU_cycles = 0;
+		cycleCounter = 0;
+
+		PPU_cycles = 0;
+		PPU_scanline = -1;
+
+		frameFinished = false;
 	}
 
 	void reset()
 	{
 		S -= 3;
 		P |= 0x04;
-		cycles = 9;
+		CPU_cycles = 9;
 		PC = ((uint16_t)CPU_readMemory1B(0xfffd) << 8) | CPU_readMemory1B(0xfffc);
+		PPU_cycles = 0;
+		PPU_scanline = -1;
+		cycleCounter = 0;
+		frameFinished = false;
 	}
 
 	void loadFromBuffer(uint16_t startAddress, uint8_t* opcodes, uint16_t size)
@@ -190,7 +205,7 @@ public:
 		PPU_cycle();
 
 		if(cycleCounter == 0)
-			CPU_cycle();
+			std::cout << CPU_cycle();
 
 		cycleCounter++;
 		cycleCounter %= 3;
@@ -198,13 +213,30 @@ public:
 
 	void PPU_cycle()
 	{
-		;
+		if(!(PPU_cycles < 0 || PPU_cycles > 255 || PPU_scanline < 0 || PPU_scanline >= 240))
+			screen2.setPixel(PPU_cycles, PPU_scanline, randomBool(re) ? sf::Color::White : sf::Color::Black);
+		
+		//std::cout << ".";
+		PPU_cycles++;
+		if (PPU_cycles >= 341)
+		{
+			PPU_cycles = 0;
+			PPU_scanline++;
+			//std::cout << "*";
+			if (PPU_scanline >= 261)
+			{
+				PPU_scanline = -1;
+				screen = screen2;
+				frameFinished = true;
+				//std::cout << "!";
+			}
+		}
 	}
 
 	std::string CPU_cycle()
 	{
 		std::string str = "";
-		if (cycles == 0)
+		if (CPU_cycles == 0)
 		{
 			uint8_t opcode = CPU_readMemory1B(PC);
 			uint8_t arg8 = CPU_readMemory1B(PC + 1);
@@ -216,6 +248,8 @@ public:
 			bool pageBoundaryCrossed = false;
 
 			str += "$" + HEX(PC) + " : $" + HEX(opcode) + " : ";
+
+			CPU_cycles = 0;
 
 			// opcodes to add : BRK
 			switch (opcode)
@@ -230,7 +264,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 6;
+				CPU_cycles = 6;
 				PC += 2;
 
 				break;
@@ -245,7 +279,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 3;
+				CPU_cycles = 3;
 				PC += 2;
 
 				break;
@@ -264,7 +298,7 @@ public:
 				SET_FLAG(FLAG_N, (tmp8 >> 7));
 				SET_FLAG(FLAG_Z, (tmp8 == 0));
 
-				cycles = 5;
+				CPU_cycles = 5;
 				PC += 2;
 
 				break;
@@ -275,7 +309,7 @@ public:
 				tmp8 = (P | (1 << FLAG_B) | (1 << FLAG_1));
 				push(tmp8);
 
-				cycles = 3;
+				CPU_cycles = 3;
 				PC += 1;
 
 				break;
@@ -288,7 +322,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 2;
+				CPU_cycles = 2;
 				PC += 2;
 
 				break;
@@ -303,7 +337,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 2;
+				CPU_cycles = 2;
 				PC += 1;
 
 				break;
@@ -316,7 +350,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 4;
+				CPU_cycles = 4;
 				PC += 3;
 
 				break;
@@ -335,7 +369,7 @@ public:
 				SET_FLAG(FLAG_N, (tmp8 >> 7));
 				SET_FLAG(FLAG_Z, (tmp8 == 0));
 
-				cycles = 6;
+				CPU_cycles = 6;
 				PC += 3;
 
 				break;
@@ -346,7 +380,7 @@ public:
 				if (!GET_FLAG(FLAG_N))
 					PC += (int8_t)arg8;
 
-				cycles = 3 + (PCPage != (PC >> 8)); //2**
+				CPU_cycles = 3 + (PCPage != (PC >> 8)); //2**
 				PC += 2;
 
 				break;
@@ -359,7 +393,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 5 + pageBoundaryCrossed;
+				CPU_cycles = 5 + pageBoundaryCrossed;
 				PC += 3;
 
 				break;
@@ -372,7 +406,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 4;
+				CPU_cycles = 4;
 				PC += 2;
 
 				break;
@@ -391,7 +425,7 @@ public:
 				SET_FLAG(FLAG_N, (tmp8 >> 7));
 				SET_FLAG(FLAG_Z, (tmp8 == 0));
 
-				cycles = 6;
+				CPU_cycles = 6;
 				PC += 2;
 
 				break;
@@ -401,7 +435,7 @@ public:
 
 				SET_FLAG_0(FLAG_C);
 
-				cycles = 2;
+				CPU_cycles = 2;
 				PC += 1;
 
 				break;
@@ -414,7 +448,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 4 + pageBoundaryCrossed;
+				CPU_cycles = 4 + pageBoundaryCrossed;
 				PC += 3;
 
 				break;
@@ -427,7 +461,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 4 + pageBoundaryCrossed;
+				CPU_cycles = 4 + pageBoundaryCrossed;
 				PC += 3;
 
 				break;
@@ -446,7 +480,7 @@ public:
 				SET_FLAG(FLAG_N, (tmp8 >> 7));
 				SET_FLAG(FLAG_Z, (tmp8 == 0));
 
-				cycles = 7;
+				CPU_cycles = 7;
 				PC += 3;
 
 				break;
@@ -458,7 +492,7 @@ public:
 
 				PC = arg16;
 
-				cycles = 6;
+				CPU_cycles = 6;
 
 				break;
 
@@ -470,7 +504,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 6;
+				CPU_cycles = 6;
 				PC += 2;
 
 				break;
@@ -485,7 +519,7 @@ public:
 
 				SET_FLAG(FLAG_Z, (tmp8 & A) == 0);
 
-				cycles = 3;
+				CPU_cycles = 3;
 				PC += 2;
 
 				break;
@@ -498,7 +532,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 3;
+				CPU_cycles = 3;
 				PC += 2;
 
 				break;
@@ -519,7 +553,7 @@ public:
 				SET_FLAG(FLAG_N, (tmp8 >> 7));
 				SET_FLAG(FLAG_Z, (tmp8 == 0));
 
-				cycles = 5;
+				CPU_cycles = 5;
 				PC += 2;
 
 				break;
@@ -529,7 +563,7 @@ public:
 
 				P = pull();
 
-				cycles = 4;
+				CPU_cycles = 4;
 				PC += 1;
 
 				break;
@@ -542,7 +576,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 2;
+				CPU_cycles = 2;
 				PC += 2;
 
 				break;
@@ -559,7 +593,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 2;
+				CPU_cycles = 2;
 				PC += 1;
 
 				break;
@@ -574,7 +608,7 @@ public:
 
 				SET_FLAG(FLAG_Z, (tmp8 & A) == 0);
 
-				cycles = 4;
+				CPU_cycles = 4;
 				PC += 3;
 
 				break;
@@ -587,7 +621,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 4;
+				CPU_cycles = 4;
 				PC += 3;
 
 				break;
@@ -608,7 +642,7 @@ public:
 				SET_FLAG(FLAG_N, (tmp8 >> 7));
 				SET_FLAG(FLAG_Z, (tmp8 == 0));
 
-				cycles = 6;
+				CPU_cycles = 6;
 				PC += 3;
 
 				break;
@@ -619,7 +653,7 @@ public:
 				if (GET_FLAG(FLAG_N))
 					PC += (int8_t)arg8;
 
-				cycles = 3 + (PCPage != (PC >> 8)); //2**
+				CPU_cycles = 3 + (PCPage != (PC >> 8)); //2**
 				PC += 2;
 
 				break;
@@ -632,7 +666,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 5 + pageBoundaryCrossed;
+				CPU_cycles = 5 + pageBoundaryCrossed;
 				PC += 2;
 
 				break;
@@ -645,7 +679,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 4;
+				CPU_cycles = 4;
 				PC += 2;
 
 				break;
@@ -666,7 +700,7 @@ public:
 				SET_FLAG(FLAG_N, (tmp8 >> 7));
 				SET_FLAG(FLAG_Z, (tmp8 == 0));
 
-				cycles = 6;
+				CPU_cycles = 6;
 				PC += 2;
 
 				break;
@@ -676,7 +710,7 @@ public:
 
 				SET_FLAG_1(FLAG_CARRY);
 
-				cycles = 2;
+				CPU_cycles = 2;
 				PC += 1;
 
 				break;
@@ -689,7 +723,7 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
-				cycles = 2;
+				CPU_cycles = 2;
 				PC += 2;
 
 				break;
@@ -705,7 +739,7 @@ public:
 				SET_FLAG(FLAG_Z, (tmp16 == 0));
 				SET_FLAG(FLAG_N, (A >> 7));
 
-				cycles = 2;
+				CPU_cycles = 2;
 				PC += 2;
 
 				break;
@@ -715,7 +749,7 @@ public:
 
 				CPU_writeMemory1B(arg8, A);
 
-				cycles = 3;
+				CPU_cycles = 3;
 				PC += 2;
 
 				break;
@@ -729,7 +763,7 @@ public:
 			str += "\n";
 		}
 
-		cycles--;
+		CPU_cycles--;
 
 		return str;
 	}
@@ -740,7 +774,12 @@ public:
 	uint8_t A, X, Y, P, S;
 	uint16_t PC;
 
-	uint8_t cycles;
+	uint8_t CPU_cycles;
+	uint16_t PPU_cycles;
 	uint8_t cycleCounter;
+	int16_t PPU_scanline;
 	Mapper mapper;
+
+	sf::Image screen, screen2;
+	bool frameFinished;
 };
