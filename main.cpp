@@ -5,19 +5,18 @@
 
 sf::VideoMode SCREEN = sf::VideoMode::getDesktopMode();
 
-#define updateRegistersText() registers.setString("A:  #$" + HEX(emu.A) + "\n" + \
-												  "X:  #$" + HEX(emu.X) + "\n" + \
-												  "Y:  #$" + HEX(emu.Y) + "\n" + \
-												  "P:  #$" + HEX(emu.P) + "\n" + \
-												  "S:  #$" + HEX(emu.S) + "\n" + \
-												  "PC: #$" + HEX(emu.PC));
-
-int main()
+int main(int argc, char** argv)
 {
-	NESEmulator emu;
+	if (argc != 1 + 1)
+		return 1;
 
-	uint8_t basicAdd[] = { 0xa9, 0x50, 0x69, 0x12, 0x85, 0x00 };
-	emu.load(0x200, &basicAdd[0], 6);
+	NESEmulator emu;
+	//emu.powerUp();
+	emu.loadFromiNES(argv[0 + 1]);
+	emu.PC = 0xC000; // nestest.nes without PPU
+
+	//uint8_t basicAdd[] = { 0xa9, 0x50, 0x69, 0x12, 0x85, 0x00 };
+	//emu.loadFromBuffer(0x200, &basicAdd[0], 6);
 
 	sf::Font font;
 	font.loadFromFile("resources/font.ttf");
@@ -33,10 +32,13 @@ int main()
 
 	int32_t memoryScroll = 0;
 
-	uint32_t sDown = 0;
+	uint32_t sDown = 0, spaceDown = 0;
+
+	bool running = false;
 
 	sf::RenderWindow window(sf::VideoMode(800, 550), "NES Emulator");
 	window.setFramerateLimit(60);
+
 	while (window.isOpen())
 	{
 		sf::Event event;
@@ -47,19 +49,32 @@ int main()
 			if (event.type == sf::Event::Resized)
 				window.setView(sf::View(sf::FloatRect(0, 0, (float)event.size.width, (float)event.size.height)));
 			if (event.type == event.MouseWheelMoved)
-				memoryScroll -= event.mouseWheel.delta;
+			{
+				if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl))
+					memoryScroll -= 16 * event.mouseWheel.delta;
+				else
+					memoryScroll -= event.mouseWheel.delta;
+			}
 		}
 
-		memoryScroll = std::max(0, std::min((int)memoryScroll, 0x10000 - 24));
+		memoryScroll = std::max(0, std::min((int)memoryScroll, 0x2000 - 24));
 
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
 			sDown++;
 		else
 			sDown = 0;
 
-		if (sDown == 1)
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
+			spaceDown++;
+		else
+			spaceDown = 0;
+
+		if (spaceDown == 1)
+			running ^= true;
+
+		if (sDown == 1 || running)
 		{
-			std::cout << emu.cycle();
+			emu.cycle();
 
 			updateRegistersText();
 		}
@@ -89,7 +104,7 @@ int main()
 			window.draw(memory);
 			for (uint16_t j = 0; j < 8; j++)
 			{
-				memory.setString(HEX_1B(emu.readMemory1B(j + 8 * (i + memoryScroll))));
+				memory.setString(HEX_1B(emu.CPU_readMemory1B(j + 8 * (i + memoryScroll))));
 				memory.setPosition(sf::Vector2f(ws.y + 260 + j * 60 + 160, i * 40.f));
 				window.draw(memory);
 			}

@@ -46,4 +46,31 @@ namespace
 
 #define FLAG_OVERFLOW          FLAG_V
 #define FLAG_NEGATIVE          FLAG_N
+
+#define updateRegistersText() registers.setString("A:  #$" + HEX(emu.A) + "\n" + \
+												  "X:  #$" + HEX(emu.X) + "\n" + \
+												  "Y:  #$" + HEX(emu.Y) + "\n" + \
+												  "P:  #$" + HEX(emu.P) + "\n" + \
+												  "S:  #$" + HEX(emu.S) + "\n" + \
+												  "PC: #$" + HEX(emu.PC));
+
+	enum Mapper
+	{
+		Mapper0_NROM_128,
+		Mapper0_NROM_256,
+		Other
+	};
+
+	struct iNESHeader // 16B
+	{
+		uint8_t NES[4];		// $4E $45 $53 $1A
+		uint8_t PRGROMSize; // Size of PRG ROM in 16 KB units
+		uint8_t CHRROMSize; // Size of CHR ROM in 8 KB units (value 0 means the board uses CHR RAM)
+		uint8_t flags6;		// Mapper, mirroring, battery, trainer
+		uint8_t flags7;		// Mapper, VS/Playchoice, NES 2.0
+		uint8_t flags8;		// PRG-RAM size (rarely used extension)
+		uint8_t flags9;		// TV system (rarely used extension)
+		uint8_t flags10;	// TV system, PRG-RAM presence (unofficial, rarely used extension)
+		uint8_t padding[5];	// Unused padding (should be filled with zero, but some rippers put their name across bytes 7-15)
+	};
 }
