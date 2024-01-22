@@ -23,7 +23,7 @@ public:
 	void powerUp()
 	{
 		A = X = Y = 0;
-		P = 0x34;
+		SR = 0x34;
 		S = 0xfd;
 		CPU_writeMemory1B(0x4017, 0);
 		CPU_writeMemory1B(0x4015, 0);
@@ -43,9 +43,9 @@ public:
 	void reset()
 	{
 		S -= 3;
-		P |= 0x04;
+		SR |= 0x04;
 		CPU_cycles = 9;
-		PC = ((uint16_t)CPU_readMemory1B(0xfffd) << 8) | CPU_readMemory1B(0xfffc);
+		PC = CPU_readMemory2B(RESET_VECTOR);
 		PPU_cycles = 0;
 		PPU_scanline = -1;
 		cycleCounter = 0;
@@ -58,9 +58,7 @@ public:
 			CPU_writeMemory1B(startAddress + i, opcodes[i]);
 
 		PC = startAddress;
-
-		CPU_writeMemory1B(0xfffd, (uint8_t)(PC >> 8));
-		CPU_writeMemory1B(0xfffc, (uint8_t)PC);
+		CPU_writeMemory2B(RESET_VECTOR, startAddress);
 	}
 
 	void loadFromiNES(std::string fileName)
@@ -85,7 +83,7 @@ public:
 
 		memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size * sizeof(uint8_t));
 
-		PC = ((uint16_t)CPU_readMemory1B(0xfffd) << 8) | CPU_readMemory1B(0xfffc);
+		PC = CPU_readMemory2B(RESET_VECTOR);
 	}
 
 	void CPU_writeMemory1B(uint16_t address, uint8_t value)
@@ -154,16 +152,41 @@ public:
 		return 0;
 	}
 
-	void push(uint8_t value)
+	uint16_t CPU_readMemory2B(uint16_t address)
+	{
+		return ((uint16_t)CPU_readMemory1B(address + 1) << 8) | CPU_readMemory1B(address);
+	}
+
+	void CPU_writeMemory2B(uint16_t address, uint16_t value)
+	{
+		CPU_writeMemory1B(address, value & 0xff);
+		CPU_writeMemory1B(address + 1, value >> 8);
+	}
+
+	void push1B(uint8_t value)
 	{
 		CPU_writeMemory1B(S + 0x100, value);
 		S--;
 	}
 
-	uint8_t pull()
+	uint8_t pull1B()
 	{
 		S++;
 		return CPU_readMemory1B(S + 0x100);
+	}
+
+	void push2B(uint16_t value)
+	{
+		push1B(value >> 8);
+		push1B(value & 0xff);
+	}
+
+	uint8_t pull2B()
+	{
+		uint8_t lo = pull1B();
+		uint16_t hi = pull1B();
+
+		return (hi << 8) | lo;
 	}
 
 	uint8_t readIndexedIndirectX(uint8_t d)
@@ -240,7 +263,7 @@ public:
 		{
 			uint8_t opcode = CPU_readMemory1B(PC);
 			uint8_t arg8 = CPU_readMemory1B(PC + 1);
-			uint16_t arg16 = (((uint16_t)CPU_readMemory1B(PC + 2) << 8) | arg8);
+			uint16_t arg16 = CPU_readMemory2B(PC + 1);
 			uint16_t tmp16;
 			uint8_t tmp8;
 			bool tmp1;
@@ -249,11 +272,22 @@ public:
 
 			str += "$" + HEX(PC) + " : $" + HEX(opcode) + " : ";
 
-			CPU_cycles = 0;
+			CPU_cycles = 1;
 
 			// opcodes to add : BRK
 			switch (opcode)
 			{
+			case 0x00:
+				push2B(PC + 1);
+				SET_FLAG_1(FLAG_I);
+				push1B(SR | (1 << FLAG_B));
+
+				PC = CPU_readMemory2B(IRQ_VECTOR);
+
+				CPU_cycles = 7;
+
+				break;
+
 			case 0x01: // ORA (indirect, X)
 				str += "ORA ($" + HEX(arg8) + ", X)";
 
@@ -306,8 +340,8 @@ public:
 			case 0x08: // PHP
 				str += "PHP";
 
-				tmp8 = (P | (1 << FLAG_B) | (1 << FLAG_1));
-				push(tmp8);
+				tmp8 = (SR | (1 << FLAG_B) | (1 << FLAG_1));
+				push1B(tmp8);
 
 				CPU_cycles = 3;
 				PC += 1;
@@ -488,7 +522,7 @@ public:
 			case 0x20: // JSR absolute
 				str += "JSR $" + HEX(arg16);
 
-				push(PC + 2);
+				push1B(PC + 2);
 
 				PC = arg16;
 
@@ -561,7 +595,7 @@ public:
 			case 0x28: // PLP
 				str += "PLP";
 
-				P = pull();
+				SR = pull1B();
 
 				CPU_cycles = 4;
 				PC += 1;
@@ -715,6 +749,140 @@ public:
 
 				break;
 
+			case 0x39: // AND absolute, Y
+				str += "AND $" + HEX(arg16) + ", Y";
+
+				A &= CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 4 + pageBoundaryCrossed;
+				PC += 3;
+
+				break;
+
+			case 0x3d: // AND absolute, X
+				str += "AND $" + HEX(arg16) + ", X";
+
+				A &= CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 4 + pageBoundaryCrossed;
+				PC += 3;
+
+				break;
+
+			case 0x40: // RTI
+				str += "RTI";
+
+				SR = pull1B();
+				SET_FLAG_0(FLAG_B);
+				SET_FLAG_0(FLAG_I);
+				PC = pull2B();
+
+				CPU_cycles = 6;
+				//PC++;
+
+				break;
+
+			case 0x41: // EOR (indirect, X)
+				str += "EOR ($" + HEX(arg8) + ", X)";
+
+				tmp8 = readIndexedIndirectX(arg8);
+				A ^= tmp8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 6;
+				PC += 2;
+
+				break;
+
+			case 0x45: // EOR zeropage
+				str += "EOR $" + HEX(arg8);
+
+				tmp8 = CPU_readMemory1B(arg8);
+				A ^= tmp8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 3;
+				PC += 2;
+
+				break;
+
+			case 0x46: // LSR zeropage
+				str += "LSR $" + HEX(arg8);
+
+				tmp8 = CPU_readMemory1B(arg8);
+
+				SET_FLAG(FLAG_C, tmp8 & 1);
+
+				tmp8 >>= 1;
+
+				CPU_writeMemory1B(arg8, tmp8);
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				CPU_cycles = 5;
+				PC += 2;
+
+				break;
+
+			case 0x48: // PHA
+				str += "PHA";
+
+				push1B(A);
+
+				PC++;
+				CPU_cycles = 3;
+
+				break;
+
+			case 0x49: // EOR imm8
+				str += "EOR #$" + HEX(arg8);
+
+				A ^= arg8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 2;
+				PC += 2;
+
+				break;
+
+			case 0x4a: // LSR A
+				str += "LSR A";
+
+				SET_FLAG(FLAG_C, A & 1);
+
+				A >>= 1;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 2;
+				PC += 1;
+
+				break;
+
+			case 0x4c: // JMP absolute
+				str += "JMP $" + HEX(arg16);
+
+				CPU_cycles = 3;
+				//PC += 3;
+
+				PC = arg16;
+
+				break;
+
 			case 0xa9: // LDA imm8
 				str += "LDA #$" + HEX(arg8);
 
@@ -771,7 +939,7 @@ public:
 public:
 	uint8_t CPU_memory[64 * KB];
 	uint8_t PPU_memory[16 * KB];
-	uint8_t A, X, Y, P, S;
+	uint8_t A, X, Y, SR, S;
 	uint16_t PC;
 
 	uint8_t CPU_cycles;

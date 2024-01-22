@@ -27,11 +27,11 @@ namespace
 #define KB (B * 1024)
 	//#define MB (KB * 1024)
 
-#define GET_FLAG(bit)           ((P & (1 << bit)) >> bit)
-#define SET_FLAG_1(bit)           P |= (1 << bit)
-#define SET_FLAG_0(bit)         P &= ~((uint8_t)(1 << bit))
-#define TOGGLE_FLAG(bit)        P ^= (1 << bit)
-#define SET_FLAG(bit, value)    SET_FLAG_0(bit); P |= (value << bit)
+#define GET_FLAG(bit)           ((SR & (1 << bit)) >> bit)
+#define SET_FLAG_1(bit)           SR |= (1 << bit)
+#define SET_FLAG_0(bit)         SR &= ~((uint8_t)(1 << bit))
+#define TOGGLE_FLAG(bit)        SR ^= (1 << bit)
+#define SET_FLAG(bit, value)    SET_FLAG_0(bit); SR |= (value << bit)
 
 #define FLAG_C 0
 #define FLAG_Z 1
@@ -42,19 +42,23 @@ namespace
 #define FLAG_V 6
 #define FLAG_N 7
 
-#define FLAG_CARRY             FLAG_C
-#define FLAG_ZERO              FLAG_Z
-#define FLAG_INTERRUPT_DISABLE FLAG_I
-#define FLAG_DECIMAL           FLAG_D
+#define FLAG_CARRY				FLAG_C
+#define FLAG_ZERO				FLAG_Z
+#define FLAG_INTERRUPT_DISABLE	FLAG_I
+#define FLAG_DECIMAL			FLAG_D
 
 
-#define FLAG_OVERFLOW          FLAG_V
-#define FLAG_NEGATIVE          FLAG_N
+#define FLAG_OVERFLOW			FLAG_V
+#define FLAG_NEGATIVE			FLAG_N
+
+#define NMI_VECTOR				0xfffa	
+#define RESET_VECTOR			0xfffc
+#define IRQ_VECTOR				0xfffe
 
 #define updateRegistersText() registers.setString("A:  #$" + HEX(emu.A) + "\n" + \
 												  "X:  #$" + HEX(emu.X) + "\n" + \
 												  "Y:  #$" + HEX(emu.Y) + "\n" + \
-												  "P:  #$" + HEX(emu.P) + "\n" + \
+												  "SR: #$" + HEX(emu.SR) + "\n" + \
 												  "S:  #$" + HEX(emu.S) + "\n" + \
 												  "PC: #$" + HEX(emu.PC));
 

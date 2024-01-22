@@ -13,7 +13,7 @@ int main(int argc, char** argv)
 	NESEmulator emu;
 	//emu.powerUp();
 	emu.loadFromiNES(argv[0 + 1]);
-	emu.PC = 0xC000; // nestest.nes without PPU
+	//emu.PC = 0xC000; // nestest.nes without PPU
 
 	//uint8_t basicAdd[] = { 0xa9, 0x50, 0x69, 0x12, 0x85, 0x00 };
 	//emu.loadFromBuffer(0x200, &basicAdd[0], 6);
@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 
 	int32_t memoryScroll = 0;
 
-	uint32_t sDown = 0, spaceDown = 0;
+	uint32_t sDown = 0, fDown = 0, spaceDown = 0;
 
 	bool running = false;
 
@@ -65,6 +65,11 @@ int main(int argc, char** argv)
 		else
 			sDown = 0;
 
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::F))
+			fDown++;
+		else
+			fDown = 0;
+
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
 			spaceDown++;
 		else
@@ -73,7 +78,7 @@ int main(int argc, char** argv)
 		if (spaceDown == 1)
 			running ^= true;
 
-		if (sDown == 1 || running)
+		if (fDown == 1 || running)
 		{
 			//for(uint16_t i = 0; i < 1.789773 * 1000000 * 3; i++)
 			//for (uint16_t i = 0; i < 21.477272 * 1000000 / 4; i++)
@@ -84,12 +89,15 @@ int main(int argc, char** argv)
 
 			updateRegistersText();
 		}
-		/*for (unsigned int i = 0; i < 1.789773 * 1000000 / 60; i++)
+
+		if (sDown == 1)
 		{
-			std::cout << emu.cycle();
+			emu.cycle();
+
+			emu.frameFinished = false;
 
 			updateRegistersText();
-		}*/
+		}
 
 		sf::Vector2f ws = (sf::Vector2f)window.getSize();
 
