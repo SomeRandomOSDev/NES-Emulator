@@ -13,7 +13,7 @@ int main(int argc, char** argv)
 	NESEmulator emu;
 	//emu.powerUp();
 	emu.loadFromiNES(argv[0 + 1]);
-	//emu.PC = 0xC000; // nestest.nes without PPU
+	emu.PC = 0xC000; // nestest.nes without PPU
 
 	//uint8_t basicAdd[] = { 0xa9, 0x50, 0x69, 0x12, 0x85, 0x00 };
 	//emu.loadFromBuffer(0x200, &basicAdd[0], 6);

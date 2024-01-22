@@ -227,8 +227,11 @@ public:
 	{
 		PPU_cycle();
 
-		if(cycleCounter == 0)
-			std::cout << CPU_cycle();
+		if (cycleCounter == 0)
+		{
+			std::string log = CPU_cycle();
+			std::cout.write(log.c_str(), log.size());
+		}
 
 		cycleCounter++;
 		cycleCounter %= 3;
@@ -256,6 +259,20 @@ public:
 		}
 	}
 
+	void INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_FLAG)
+	{
+		if (GET_FLAG(FLAG_I))
+			PC = returnAddress;
+		else
+		{
+			push2B(returnAddress);
+			SET_FLAG_1(FLAG_I);
+			push1B((SR & (uint8_t)(~(1 << FLAG_B))) | (B_FLAG << FLAG_B));
+
+			PC = CPU_readMemory2B(isrAddress);
+		}
+	}
+
 	std::string CPU_cycle()
 	{
 		std::string str = "";
@@ -278,11 +295,7 @@ public:
 			switch (opcode)
 			{
 			case 0x00:
-				push2B(PC + 1);
-				SET_FLAG_1(FLAG_I);
-				push1B(SR | (1 << FLAG_B));
-
-				PC = CPU_readMemory2B(IRQ_VECTOR);
+				INTERRUPT(PC + 2, BRK_VECTOR, true);
 
 				CPU_cycles = 7;
 
@@ -411,10 +424,17 @@ public:
 			case 0x10: // BPL relative
 				str += "BPL $" + HEX(arg8);
 
-				if (!GET_FLAG(FLAG_N))
-					PC += (int8_t)arg8;
+				CPU_cycles = 2;
 
-				CPU_cycles = 3 + (PCPage != (PC >> 8)); //2**
+				if (!GET_FLAG(FLAG_N))
+				{
+					CPU_cycles++;
+					PC += (int8_t)arg8;
+				}
+
+				if(PCPage != (PC >> 8))
+					CPU_cycles++;
+
 				PC += 2;
 
 				break;
@@ -684,10 +704,15 @@ public:
 			case 0x30: // BMI relative
 				str += "BMI $" + HEX(arg8);
 
-				if (GET_FLAG(FLAG_N))
-					PC += (int8_t)arg8;
+				CPU_cycles = 2;
 
-				CPU_cycles = 3 + (PCPage != (PC >> 8)); //2**
+				if (GET_FLAG(FLAG_N))
+				{
+					CPU_cycles++;
+					PC += (int8_t)arg8;
+				}
+				if (PCPage != (PC >> 8))
+					CPU_cycles++;
 				PC += 2;
 
 				break;
@@ -779,7 +804,6 @@ public:
 				str += "RTI";
 
 				SR = pull1B();
-				SET_FLAG_0(FLAG_B);
 				SET_FLAG_0(FLAG_I);
 				PC = pull2B();
 
@@ -883,15 +907,180 @@ public:
 
 				break;
 
-			case 0xa9: // LDA imm8
-				str += "LDA #$" + HEX(arg8);
+			case 0x4d: // EOR absolute
+				str += "EOR $" + HEX(arg16);
 
-				A = arg8;
+				tmp8 = CPU_readMemory1B(arg16);
+				A ^= tmp8;
 
 				SET_FLAG(FLAG_N, (A >> 7));
 				SET_FLAG(FLAG_Z, (A == 0));
 
+				CPU_cycles = 4;
+				PC += 3;
+
+				break;
+
+			case 0x4e: // LSR absolute
+				str += "LSR $" + HEX(arg16);
+
+				tmp8 = CPU_readMemory1B(arg16);
+
+				SET_FLAG(FLAG_C, tmp8 & 1);
+
+				tmp8 >>= 1;
+
+				CPU_writeMemory1B(arg16, tmp8);
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				CPU_cycles = 6;
+				PC += 3;
+
+				break;
+
+			case 0x50: // BVC relative
+				str += "BVC $" + HEX(arg8);
+
 				CPU_cycles = 2;
+
+				if (!GET_FLAG(FLAG_V))
+				{
+					PC += (int8_t)arg8;
+					CPU_cycles++;
+				}
+
+				if (PCPage != (PC >> 8))
+					CPU_cycles++;
+
+				PC += 2;
+
+				break;
+
+			case 0x51: // EOR (indirect), Y
+				str += "EOR ($" + HEX(arg8) + "), Y";
+
+				tmp8 = readIndirectIndexedY(arg8, pageBoundaryCrossed);
+				A ^= tmp8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 5 + pageBoundaryCrossed;
+				PC += 2;
+
+				break;
+
+			case 0x55: // EOR zeropage, X
+				str += "EOR $" + HEX(arg8) + ", X";
+
+				tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
+				A ^= tmp8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 4;
+				PC += 2;
+
+				break;
+
+			case 0x56: // LSR zeropage, X
+				str += "LSR $" + HEX(arg8) + ", X";
+
+				tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
+
+				SET_FLAG(FLAG_C, tmp8 & 1);
+
+				tmp8 >>= 1;
+
+				CPU_writeMemory1B(zeropageIndexedXAddress(arg8), tmp8);
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				CPU_cycles = 6;
+				PC += 2;
+
+				break;
+
+			case 0x58: // CLI
+				SET_FLAG_0(FLAG_I);
+
+				CPU_cycles = 2;
+				PC++;
+
+				break;
+
+			case 0x59: // EOR absolute, Y
+				str += "EOR $" + HEX(arg16) + ", Y";
+
+				tmp8 = CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
+				A ^= tmp8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 4 + pageBoundaryCrossed;
+				PC += 3;
+
+				break;
+
+			case 0x5d: // EOR absolute, X
+				str += "EOR $" + HEX(arg16) + ", X";
+
+				tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
+				A ^= tmp8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 4 + pageBoundaryCrossed;
+				PC += 3;
+
+				break;
+
+			case 0x5e: // LSR absolute, X
+				str += "LSR $" + HEX(arg16) + ", X";
+
+				tmp16 = absoluteIndexedXAddress(arg16, pageBoundaryCrossed);
+				tmp8 = CPU_readMemory1B(tmp16);
+
+				SET_FLAG(FLAG_C, tmp8 & 1);
+
+				tmp8 >>= 1;
+
+				CPU_writeMemory1B(tmp16, tmp8);
+
+				SET_FLAG(FLAG_N, 0);
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				CPU_cycles = 7;
+				PC += 3;
+
+				break;
+
+			case 0x60: // RTS
+				PC = pull2B();
+				
+				CPU_cycles = 6;
+				PC++;
+				
+				break;
+
+			case 0x61: // ADC (indirect, X)
+				str += "ADC ($" + HEX(arg8) + ", X)";
+
+				tmp16 = (uint16_t)A + (uint16_t)readIndexedIndirectX(arg8) + (uint16_t)GET_FLAG(FLAG_C);
+				A = (uint8_t)tmp16;
+
+				SET_FLAG(FLAG_C, (tmp16 > 0xff));
+				SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)arg8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+				SET_FLAG(FLAG_Z, (tmp16 == 0));
+				SET_FLAG(FLAG_N, (A >> 7));
+
+				CPU_cycles = 6;
 				PC += 2;
 
 				break;
@@ -906,6 +1095,19 @@ public:
 				SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)arg8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
 				SET_FLAG(FLAG_Z, (tmp16 == 0));
 				SET_FLAG(FLAG_N, (A >> 7));
+
+				CPU_cycles = 2;
+				PC += 2;
+
+				break;
+
+			case 0xa9: // LDA imm8
+				str += "LDA #$" + HEX(arg8);
+
+				A = arg8;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
 
 				CPU_cycles = 2;
 				PC += 2;

@@ -54,6 +54,7 @@ namespace
 #define NMI_VECTOR				0xfffa	
 #define RESET_VECTOR			0xfffc
 #define IRQ_VECTOR				0xfffe
+#define BRK_VECTOR				IRQ_VECTOR
 
 #define updateRegistersText() registers.setString("A:  #$" + HEX(emu.A) + "\n" + \
 												  "X:  #$" + HEX(emu.X) + "\n" + \
