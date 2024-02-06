@@ -17,6 +17,9 @@ public:
 		screen.create(256, 240);
 		screen2.create(256, 240);
 
+		log = "";
+		logLines = 0;
+
 		powerUp();
 	}
 
@@ -38,6 +41,8 @@ public:
 		PPU_scanline = -1;
 
 		frameFinished = false;
+
+		LOG_ADD_LINE("POWER_UP");
 	}
 
 	void reset()
@@ -50,6 +55,8 @@ public:
 		PPU_scanline = -1;
 		cycleCounter = 0;
 		frameFinished = false;
+
+		LOG_ADD_LINE("RESET");
 	}
 
 	void loadFromBuffer(uint16_t startAddress, uint8_t* opcodes, uint16_t size)
@@ -63,6 +70,8 @@ public:
 
 	void loadFromiNES(std::string fileName)
 	{
+		LOG_ADD_LINE("Loading " + fileName + "...");
+
 		std::ifstream f(fileName, std::ios::binary);
 		if (!f) return;
 		std::vector<uint8_t> buffer(std::istreambuf_iterator<char>(f), {});
@@ -73,15 +82,25 @@ public:
 
 		uint8_t mapper_lo = (header.flags6 >> 4), mapper_hi = (header.flags7 >> 4);
 		uint8_t mapperNb = (mapper_lo | (mapper_hi << 4));
-		mapper = (mapperNb == 0 ? (header.PRGROMSize == 1 ? Mapper0_NROM_128 : Mapper0_NROM_256) : Other);
 
-		//std::cout << HEX(mapper) << std::endl;
+		if (mapperNb == 0)
+		{
+			mapper = (mapperNb == 0 ? (header.PRGROMSize == 1 ? Mapper0_NROM_128 : Mapper0_NROM_256) : Other);
 
-		bool trainer = (header.flags6 >> 2) & 1;
+			//std::cout << HEX(mapper) << std::endl;
 
-		uint16_t PRGROM_location = 16 + (512 * trainer), PRGROM_size = 16384 * header.PRGROMSize;
+			bool trainer = (header.flags6 >> 2) & 1;
 
-		memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size * sizeof(uint8_t));
+			uint16_t PRGROM_location = 16 + (512 * trainer), PRGROM_size = 16384 * header.PRGROMSize;
+			uint16_t CHRROM_location = PRGROM_location + PRGROM_size, CHRROM_size = 8192 * header.CHRROMSize;
+
+			memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
+			memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
+
+			LOG_ADD_LINE("Loaded successfully (mapper 0).");
+		}
+		else
+			LOG_ADD_LINE("Unknown mapper (mapper " + std::to_string(mapperNb) + ").");
 
 		PC = CPU_readMemory2B(RESET_VECTOR);
 	}
@@ -152,6 +171,34 @@ public:
 		return 0;
 	}
 
+	void PPU_writeMemory1B(uint16_t address, uint8_t value)
+	{
+		if (address == 0x3f10)
+			address = 0x3f00;
+		if (address == 0x3f14)
+			address = 0x3f04;
+		if (address == 0x3f18)
+			address = 0x3f08;
+		if (address == 0x3f1c)
+			address = 0x3f0c;
+
+		PPU_memory[address] = value;
+	}
+
+	uint8_t PPU_readMemory1B(uint16_t address)
+	{
+		if (address == 0x3f10)
+			address = 0x3f00;
+		if (address == 0x3f14)
+			address = 0x3f04;
+		if (address == 0x3f18)
+			address = 0x3f08;
+		if (address == 0x3f1c)
+			address = 0x3f0c;
+
+		return PPU_memory[address];
+	}
+
 	uint16_t CPU_readMemory2B(uint16_t address)
 	{
 		return ((uint16_t)CPU_readMemory1B(address + 1) << 8) | CPU_readMemory1B(address);
@@ -161,6 +208,17 @@ public:
 	{
 		CPU_writeMemory1B(address, value & 0xff);
 		CPU_writeMemory1B(address + 1, value >> 8);
+	}
+
+	uint16_t PPU_readMemory2B(uint16_t address)
+	{
+		return ((uint16_t)PPU_readMemory1B(address + 1) << 8) | PPU_readMemory1B(address);
+	}
+
+	void PPU_writeMemory2B(uint16_t address, uint16_t value)
+	{
+		PPU_writeMemory1B(address, value & 0xff);
+		PPU_writeMemory1B(address + 1, value >> 8);
 	}
 
 	void push1B(uint8_t value)
@@ -223,14 +281,28 @@ public:
 		return a + Y;
 	}
 
-	void cycle()
+	sf::Color GetColorFromPalette(uint8_t paletteNumber, PaletteType paletteType, uint8_t index)
+	{
+		//  43210
+		//	|||||
+		//	|||++ - Pixel value from tile data
+		//	|++-- - Palette number from attribute table or OAM
+		//	+---- - Background / Sprite select
+
+		uint16_t address = 0x3f00 | ((paletteType << 4) | ((paletteNumber & 0b11) << 2) | (index & 0b11));
+
+		return NESColorToRGB(PPU_readMemory1B(address));
+	}
+
+	void cycle(bool printLog)
 	{
 		PPU_cycle();
 
 		if (cycleCounter == 0)
 		{
-			std::string log = CPU_cycle();
-			std::cout.write(log.c_str(), log.size());
+			std::string instructionLog = CPU_cycle();
+			if(instructionLog != "" && printLog)
+				LOG_ADD_LINE(instructionLog);
 		}
 
 		cycleCounter++;
@@ -241,20 +313,17 @@ public:
 	{
 		if(!(PPU_cycles < 0 || PPU_cycles > 255 || PPU_scanline < 0 || PPU_scanline >= 240))
 			screen2.setPixel(PPU_cycles, PPU_scanline, randomBool(re) ? sf::Color::White : sf::Color::Black);
-		
-		//std::cout << ".";
+	
 		PPU_cycles++;
 		if (PPU_cycles >= 341)
 		{
 			PPU_cycles = 0;
 			PPU_scanline++;
-			//std::cout << "*";
 			if (PPU_scanline >= 261)
 			{
 				PPU_scanline = -1;
 				screen = screen2;
 				frameFinished = true;
-				//std::cout << "!";
 			}
 		}
 	}
@@ -271,6 +340,18 @@ public:
 
 			PC = CPU_readMemory2B(isrAddress);
 		}
+	}
+
+	void NMI()
+	{
+		push2B(PC);
+		SET_FLAG_0(FLAG_B);
+		SET_FLAG_1(FLAG_I);
+		push1B(SR);
+
+		PC = CPU_readMemory2B(NMI_VECTOR);
+
+		CPU_cycles = 8;
 	}
 
 	std::string CPU_cycle()
@@ -291,10 +372,11 @@ public:
 
 			CPU_cycles = 1;
 
-			// opcodes to add : BRK
 			switch (opcode)
 			{
 			case 0x00:
+				str += "BRK #$" + HEX(PC + 1);
+
 				INTERRUPT(PC + 2, BRK_VECTOR, true);
 
 				CPU_cycles = 7;
@@ -1065,7 +1147,7 @@ public:
 				PC = pull2B();
 				
 				CPU_cycles = 6;
-				PC++;
+				//PC++;
 				
 				break;
 
@@ -1085,6 +1167,51 @@ public:
 
 				break;
 
+			case 0x65: // ADC zeropage
+				str += "ADC $" + HEX(arg8);
+
+				tmp16 = (uint16_t)A + (uint16_t)CPU_readMemory1B(arg8) + (uint16_t)GET_FLAG(FLAG_C);
+				A = (uint8_t)tmp16;
+
+				SET_FLAG(FLAG_C, (tmp16 > 0xff));
+				SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)arg8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+				SET_FLAG(FLAG_Z, (tmp16 == 0));
+				SET_FLAG(FLAG_N, (A >> 7));
+
+				CPU_cycles = 3;
+				PC += 2;
+
+				break;
+
+			case 0x66: // ROR zeropage
+				str += "ROR $" + HEX(arg8);
+
+				tmp8 = CPU_readMemory1B(arg8);
+
+				tmp1 = GET_FLAG(FLAG_C);
+
+				SET_FLAG(FLAG_C, tmp8 & 1);
+				tmp8 >>= 1;
+				tmp8 |= ((uint8_t)tmp1 << 7);
+
+				CPU_writeMemory1B(arg8, tmp8);
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				CPU_cycles = 5;
+				PC += 2;
+
+				break;
+
+			case 0x68: // PLA
+				A = pull1B();
+
+				CPU_cycles = 4;
+				PC++;
+
+				break;
+
 			case 0x69: // ADC imm8
 				str += "ADC #$" + HEX(arg8);
 
@@ -1097,6 +1224,227 @@ public:
 				SET_FLAG(FLAG_N, (A >> 7));
 
 				CPU_cycles = 2;
+				PC += 2;
+
+				break;
+
+			case 0x6a: // ROR A
+				str += "ROR A";
+
+				tmp8 = A;
+
+				tmp1 = GET_FLAG(FLAG_C);
+
+				SET_FLAG(FLAG_C, tmp8 & 1);
+				tmp8 >>= 1;
+				tmp8 |= ((uint8_t)tmp1 << 7);
+
+				A = tmp8;
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				CPU_cycles = 2;
+				PC += 1;
+
+				break;
+
+			case 0x6c: // JMP indirect
+				str += "JMP ($" + HEX(arg16) + ")";
+
+				CPU_cycles = 5;
+				//PC += 3;
+
+				PC = CPU_readMemory2B(arg16);
+
+				break;
+
+			case 0x6d: // ADC absolute
+				str += "ADC $" + HEX(arg16);
+
+				tmp8 = CPU_readMemory1B(arg16);
+				tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
+				A = (uint8_t)tmp16;
+
+				SET_FLAG(FLAG_C, (tmp16 > 0xff));
+				SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)tmp8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+				SET_FLAG(FLAG_Z, (tmp16 == 0));
+				SET_FLAG(FLAG_N, (A >> 7));
+
+				CPU_cycles = 4;
+				PC += 3;
+
+				break;
+
+			case 0x6e: // ROR absolute
+				str += "ROR $" + HEX(arg16);
+
+				tmp8 = CPU_readMemory1B(arg16);
+
+				tmp1 = GET_FLAG(FLAG_C);
+
+				SET_FLAG(FLAG_C, tmp8 & 1);
+				tmp8 >>= 1;
+				tmp8 |= ((uint8_t)tmp1 << 7);
+
+				CPU_writeMemory1B(arg16, tmp8);
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				CPU_cycles = 6;
+				PC += 3;
+
+				break;
+
+			case 0x70: // BVS relative
+				str += "BPL $" + HEX(arg8);
+
+				CPU_cycles = 2;
+
+				if (GET_FLAG(FLAG_V))
+				{
+					CPU_cycles++;
+					PC += (int8_t)arg8;
+				}
+
+				if (PCPage != (PC >> 8))
+					CPU_cycles++;
+
+				PC += 2;
+
+				break;
+
+			case 0x71: // ADC (indirect), Y
+				str += "ADC ($" + HEX(arg8) + "), Y";
+
+				tmp8 = readIndirectIndexedY(arg8, pageBoundaryCrossed);
+				tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
+				A = (uint8_t)tmp16;
+
+				SET_FLAG(FLAG_C, (tmp16 > 0xff));
+				SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)tmp8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+				SET_FLAG(FLAG_Z, (tmp16 == 0));
+				SET_FLAG(FLAG_N, (A >> 7));
+
+				CPU_cycles = 5 + pageBoundaryCrossed;
+				PC += 2;
+
+				break;
+
+			case 0x75: // ADC zeropage, X
+				str += "ADC ($" + HEX(arg8) + "), X";
+
+				tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
+				tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
+				A = (uint8_t)tmp16;
+
+				SET_FLAG(FLAG_C, (tmp16 > 0xff));
+				SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)tmp8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+				SET_FLAG(FLAG_Z, (tmp16 == 0));
+				SET_FLAG(FLAG_N, (A >> 7));
+
+				CPU_cycles = 4;
+				PC += 2;
+
+				break;
+
+			case 0x76: // ROR zeropage, X
+				str += "ROR $" + HEX(arg8) + ", X";
+
+				tmp16 = zeropageIndexedXAddress(arg8);
+
+				tmp8 = CPU_readMemory1B(tmp16);
+
+				tmp1 = GET_FLAG(FLAG_C);
+
+				SET_FLAG(FLAG_C, tmp8 & 1);
+				tmp8 >>= 1;
+				tmp8 |= ((uint8_t)tmp1 << 7);
+
+				CPU_writeMemory1B(tmp16, tmp8);
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				CPU_cycles = 6;
+				PC += 2;
+
+				break;
+
+			case 0x78: // SEI
+				str += "SEI";
+
+				SET_FLAG_1(FLAG_I);
+
+				PPU_cycles = 2;
+				PC++;
+
+				break;
+
+			case 0x79: // ADC absolute, Y
+				str += "ADC ($" + HEX(arg16) + "), Y";
+
+				tmp8 = CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
+				tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
+				A = (uint8_t)tmp16;
+
+				SET_FLAG(FLAG_C, (tmp16 > 0xff));
+				SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)tmp8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+				SET_FLAG(FLAG_Z, (tmp16 == 0));
+				SET_FLAG(FLAG_N, (A >> 7));
+
+				CPU_cycles = 4 + pageBoundaryCrossed;
+				PC += 3;
+
+				break;
+
+			case 0x7d: // ADC absolute, X
+				str += "ADC ($" + HEX(arg16) + "), X";
+
+				tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
+				tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
+				A = (uint8_t)tmp16;
+
+				SET_FLAG(FLAG_C, (tmp16 > 0xff));
+				SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)tmp8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+				SET_FLAG(FLAG_Z, (tmp16 == 0));
+				SET_FLAG(FLAG_N, (A >> 7));
+
+				CPU_cycles = 4 + pageBoundaryCrossed;
+				PC += 3;
+
+				break;
+
+			case 0x7e: // ROR absolute, X
+				str += "ROR $" + HEX(arg16) + ", X";
+
+				tmp16 = absoluteIndexedXAddress(arg16, pageBoundaryCrossed);
+
+				tmp8 = CPU_readMemory1B(tmp16);
+
+				tmp1 = GET_FLAG(FLAG_C);
+
+				SET_FLAG(FLAG_C, tmp8 & 1);
+				tmp8 >>= 1;
+				tmp8 |= ((uint8_t)tmp1 << 7);
+
+				CPU_writeMemory1B(tmp16, tmp8);
+
+				SET_FLAG(FLAG_N, (tmp8 >> 7));
+				SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+				CPU_cycles = 7;
+				PC += 3;
+
+				break;
+
+			case 0x85: // STA zeropage
+				str += "STA $" + HEX(arg8);
+
+				CPU_writeMemory1B(arg8, A);
+
+				CPU_cycles = 3;
 				PC += 2;
 
 				break;
@@ -1114,13 +1462,13 @@ public:
 
 				break;
 
-			case 0x85: // STA zeropage
-				str += "STA $" + HEX(arg8);
+			case 0xd8: // CLD
+				str += "CLD";
 
-				CPU_writeMemory1B(arg8, A);
+				SET_FLAG_1(FLAG_D);
 
-				CPU_cycles = 3;
-				PC += 2;
+				PPU_cycles = 2;
+				PC++;
 
 				break;
 
@@ -1129,8 +1477,6 @@ public:
 
 				break;
 			}
-
-			str += "\n";
 		}
 
 		CPU_cycles--;
@@ -1152,4 +1498,7 @@ public:
 
 	sf::Image screen, screen2;
 	bool frameFinished;
+
+	std::string log;
+	uint32_t logLines;
 };

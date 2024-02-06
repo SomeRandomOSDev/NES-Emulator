@@ -5,14 +5,15 @@
 
 sf::VideoMode SCREEN = sf::VideoMode::getDesktopMode();
 
-int main(int argc, char** argv)
+//int main(int argc, char** argv)
+int WinMain()
 {
-	if (argc != 1 + 1)
+	if (__argc != 1 + 1)
 		return 1;
 
 	NESEmulator emu;
-	//emu.powerUp();
-	emu.loadFromiNES(argv[0 + 1]);
+	emu.powerUp();
+	emu.loadFromiNES(__argv[0 + 1]);
 	emu.PC = 0xC000; // nestest.nes without PPU
 
 	//uint8_t basicAdd[] = { 0xa9, 0x50, 0x69, 0x12, 0x85, 0x00 };
@@ -23,6 +24,10 @@ int main(int argc, char** argv)
 	sf::Text registers;
 	registers.setFont(font);
 	registers.setString("");
+	sf::Text instructions;
+	instructions.setFont(font);
+
+	instructions.setPosition(sf::Vector2f(1020, 0));
 
 	updateRegistersText();
 
@@ -36,11 +41,13 @@ int main(int argc, char** argv)
 
 	bool running = false;
 
-	sf::RenderWindow window(sf::VideoMode(800, 550), "NES Emulator");
+	sf::RenderWindow window, window_cpuDebug;
+	window_cpuDebug.create(sf::VideoMode(800, 550), "NES Emulator | CPU Debug");
+	window.create(sf::VideoMode(800, 550), "NES Emulator");
 	window.setFramerateLimit(60);
 	window.setVerticalSyncEnabled(false);
 
-	while (window.isOpen())
+	while (window.isOpen() && window_cpuDebug.isOpen())
 	{
 		sf::Event event;
 		while (window.pollEvent(event))
@@ -49,6 +56,13 @@ int main(int argc, char** argv)
 				window.close();
 			if (event.type == sf::Event::Resized)
 				window.setView(sf::View(sf::FloatRect(0, 0, (float)event.size.width, (float)event.size.height)));
+		}
+		while (window_cpuDebug.pollEvent(event))
+		{
+			if (event.type == sf::Event::Closed)
+				window_cpuDebug.close();
+			if (event.type == sf::Event::Resized)
+				window_cpuDebug.setView(sf::View(sf::FloatRect(0, 0, (float)event.size.width, (float)event.size.height)));
 			if (event.type == event.MouseWheelMoved)
 			{
 				if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl))
@@ -83,7 +97,7 @@ int main(int argc, char** argv)
 			//for(uint16_t i = 0; i < 1.789773 * 1000000 * 3; i++)
 			//for (uint16_t i = 0; i < 21.477272 * 1000000 / 4; i++)
 			while(!emu.frameFinished)
-				emu.cycle();
+				emu.cycle(true);
 
 			emu.frameFinished = false;
 
@@ -92,45 +106,65 @@ int main(int argc, char** argv)
 
 		if (sDown == 1)
 		{
-			emu.cycle();
+			emu.cycle(true);
 
 			emu.frameFinished = false;
 
 			updateRegistersText();
 		}
 
-		sf::Vector2f ws = (sf::Vector2f)window.getSize();
+		while (emu.logLines > 34)
+		{
+			emu.log.erase(0, emu.log.find("\n") + 1);
+			emu.logLines--;
+		}
+
+		sf::Vector2f ws = (sf::Vector2f)window.getSize(),
+					 ws_cpuDebug = (sf::Vector2f)window_cpuDebug.getSize();
 
 		window.clear(sf::Color(128, 128, 128));
+		window_cpuDebug.clear(sf::Color(128, 128, 128));
 
-		registers.setPosition(sf::Vector2f(ws.y + 10, 0));
-		window.draw(registers);
+////////////////////////////////////////////////////////////////////////////////////////////////
 
-		sf::RectangleShape memoryRect(sf::Vector2f(SCREEN.width - (ws.y + 240), (float)SCREEN.height));
+		registers.setPosition(sf::Vector2f(10, 0));
+		window_cpuDebug.draw(registers);
+
+		sf::RectangleShape memoryRect(sf::Vector2f(710, (float)SCREEN.height));
 		memoryRect.setFillColor(sf::Color(100, 100, 100));
-		memoryRect.setPosition(sf::Vector2f(ws.y + 240, 0));
-		window.draw(memoryRect);
+		memoryRect.setPosition(sf::Vector2f(280, 0));
+		window_cpuDebug.draw(memoryRect);
 
 		for (uint16_t i = 0; i < 24; i++)
 		{
 			memory.setString("$" + HEX((i + memoryScroll) * 8));
-			memory.setPosition(sf::Vector2f(ws.y + 260, i * 40.f));
-			window.draw(memory);
+			memory.setPosition(sf::Vector2f(310, i * 40.f));
+			window_cpuDebug.draw(memory);
 			for (uint16_t j = 0; j < 8; j++)
 			{
 				memory.setString(HEX_1B(emu.CPU_readMemory1B(j + 8 * (i + memoryScroll))));
-				memory.setPosition(sf::Vector2f(ws.y + 260 + j * 60 + 160, i * 40.f));
-				window.draw(memory);
+				memory.setPosition(sf::Vector2f(310 + j * 60 + 160.f, i * 40.f));
+				window_cpuDebug.draw(memory);
 			}
 		}
 
-		sf::RectangleShape screen(sf::Vector2f(ws.y, ws.y));
+		instructions.setString(emu.log);
+		window_cpuDebug.draw(instructions);
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+		float screenSize = std::min(ws.x, ws.y);
+
+		sf::RectangleShape screen(sf::Vector2f(screenSize, screenSize));
+		screen.setOrigin(screenSize / 2.f, screenSize / 2.f);
+		screen.setPosition(sf::Vector2f(ws.x / 2.f, ws.y / 2.f));
 		sf::Texture screenTex;
 		screenTex.loadFromImage(emu.screen);
 		screen.setTexture(&screenTex);
 		window.draw(screen);
 
 		window.display();
+		window_cpuDebug.display();
 	}
 	return 0;
 }
