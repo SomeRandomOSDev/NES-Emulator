@@ -281,6 +281,18 @@ public:
 		return a + Y;
 	}
 
+	uint16_t indexedIndirectXAddress(uint16_t d)
+	{
+		return CPU_readMemory1B((d + X) % 256) + (CPU_readMemory1B((d + X + 1) % 256) * 256);
+	}
+
+	uint16_t indirectIndexedYAddress(uint8_t d)
+	{
+		uint16_t lo = CPU_readMemory1B(d);
+		/*pageBoundaryCrossed = lo > 0xff;*/
+		return lo + (CPU_readMemory1B((d + 1) % 256) * 256) + Y;
+	}
+
 	sf::Color GetColorFromPalette(uint8_t paletteNumber, PaletteType paletteType, uint8_t index)
 	{
 		//  43210
@@ -1439,6 +1451,26 @@ public:
 
 				break;
 
+			case 0x81: // STA (indirect, X)
+				str += "STA ($" + HEX(arg8) + ", X)";
+
+				CPU_writeMemory1B(indexedIndirectXAddress(arg8), A);
+
+				CPU_cycles = 6;
+				PC += 2;
+
+				break;
+
+			case 0x84: // STY zeropage
+				str += "STY $" + HEX(arg8);
+
+				CPU_writeMemory1B(arg8, Y);
+
+				CPU_cycles = 3;
+				PC += 2;
+
+				break;
+
 			case 0x85: // STA zeropage
 				str += "STA $" + HEX(arg8);
 
@@ -1446,6 +1478,267 @@ public:
 
 				CPU_cycles = 3;
 				PC += 2;
+
+				break;
+
+			case 0x86: // STX zeropage
+				str += "STX $" + HEX(arg8);
+
+				CPU_writeMemory1B(arg8, X);
+
+				CPU_cycles = 3;
+				PC += 2;
+
+				break;
+
+			case 0x88: // DEY
+				str += "DEY";
+
+				Y--;
+
+				CPU_cycles = 2;
+				PC++;
+
+				SET_FLAG(FLAG_N, (Y >> 7));
+				SET_FLAG(FLAG_Z, (Y == 0));
+
+				break;
+
+			case 0x8a: // TXA
+				str += "TXA";
+
+				A = X;
+
+				CPU_cycles = 2;
+				PC++;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				break;
+
+			case 0x8c: // STY absolute
+				str += "STY $" + HEX(arg16);
+
+				CPU_writeMemory1B(arg16, Y);
+
+				CPU_cycles = 4;
+				PC += 3;
+
+				break;
+
+			case 0x8d: // STA absolute
+				str += "STA $" + HEX(arg16);
+
+				CPU_writeMemory1B(arg16, A);
+
+				CPU_cycles = 4;
+				PC += 3;
+
+				break;
+
+			case 0x8e: // STX absolute
+				str += "STX $" + HEX(arg16);
+
+				CPU_writeMemory1B(arg16, X);
+
+				CPU_cycles = 4;
+				PC += 3;
+
+				break;
+
+			case 0x90: // BCC relative
+				str += "BPL $" + HEX(arg8);
+
+				CPU_cycles = 2;
+
+				if (!GET_FLAG(FLAG_C))
+				{
+					CPU_cycles++;
+					PC += (int8_t)arg8;
+				}
+
+				if (PCPage != (PC >> 8))
+					CPU_cycles++;
+
+				PC += 2;
+
+				break;
+
+			case 0x91: // STA (indirect), Y
+				str += "STA ($" + HEX(arg8) + "), Y";
+
+				CPU_writeMemory1B(indirectIndexedYAddress(arg8), A);
+
+				CPU_cycles = 6;
+				PC += 2;
+
+				break;
+
+			case 0x94: // STY zeropage, X
+				str += "STY $" + HEX(arg8) + ", X";
+
+				CPU_writeMemory1B(zeropageIndexedXAddress(arg8), X);
+
+				CPU_cycles = 4;
+				PC += 2;
+
+				break;
+
+			case 0x95: // STA zeropage, X
+				str += "STA $" + HEX(arg8) + ", X";
+
+				CPU_writeMemory1B(zeropageIndexedXAddress(arg8), A);
+
+				CPU_cycles = 4;
+				PC += 2;
+
+				break;
+
+			case 0x96: // STX zeropage, Y
+				str += "STX $" + HEX(arg8) + ", Y";
+
+				CPU_writeMemory1B(zeropageIndexedYAddress(arg8), X);
+
+				CPU_cycles = 4;
+				PC += 2;
+
+				break;
+
+			case 0x98: // TYA
+				str += "TYA";
+
+				A = Y;
+
+				CPU_cycles = 2;
+				PC++;
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				break;
+
+			case 0x99: // STA absolute, Y
+				str += "STA $" + HEX(arg16) + ", Y";
+
+				CPU_writeMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed), A);
+
+				CPU_cycles = 5;
+				PC += 3;
+
+				break;
+
+			case 0x9a: // TXS
+				str += "TXS";
+
+				S = X;
+
+				CPU_cycles = 2;
+				PC++;
+
+				SET_FLAG(FLAG_N, (S >> 7));
+				SET_FLAG(FLAG_Z, (S == 0));
+
+				break;
+
+			case 0x9d: // STA absolute, X
+				str += "STA $" + HEX(arg16) + ", X";
+
+				CPU_writeMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed), A);
+
+				CPU_cycles = 5;
+				PC += 3;
+
+				break;
+
+			case 0xa0: // LDY imm8
+				str += "LDY #$" + HEX(arg8);
+
+				Y = arg8;
+
+				SET_FLAG(FLAG_N, (Y >> 7));
+				SET_FLAG(FLAG_Z, (Y == 0));
+
+				CPU_cycles = 2;
+				PC += 2;
+
+				break;
+
+			case 0xa1: // LDA (indirect, X)
+				str += "LDA ($" + HEX(arg8) + ", X)";
+
+				A = readIndexedIndirectX(arg8);
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 6;
+				PC += 2;
+
+				break;
+
+			case 0xa2: // LDX imm8
+				str += "LDX #$" + HEX(arg8);
+
+				X = arg8;
+
+				SET_FLAG(FLAG_N, (X >> 7));
+				SET_FLAG(FLAG_Z, (X == 0));
+
+				CPU_cycles = 2;
+				PC += 2;
+
+				break;
+
+			case 0xa4: // LDY zeropage
+				str += "LDY $" + HEX(arg8);
+
+				Y = CPU_readMemory1B(arg8);
+
+				SET_FLAG(FLAG_N, (Y >> 7));
+				SET_FLAG(FLAG_Z, (Y == 0));
+
+				CPU_cycles = 3;
+				PC += 2;
+
+				break;
+
+			case 0xa5: // LDA zeropage
+				str += "LDA $" + HEX(arg8);
+
+				A = CPU_readMemory1B(arg8);
+
+				SET_FLAG(FLAG_N, (A >> 7));
+				SET_FLAG(FLAG_Z, (A == 0));
+
+				CPU_cycles = 3;
+				PC += 2;
+
+				break;
+
+			case 0xa6: // LDX zeropage
+				str += "LDX $" + HEX(arg8);
+
+				X = CPU_readMemory1B(arg8);
+
+				SET_FLAG(FLAG_N, (X >> 7));
+				SET_FLAG(FLAG_Z, (X == 0));
+
+				CPU_cycles = 3;
+				PC += 2;
+
+				break;
+
+			case 0xa8: // TAY
+				str += "TAY";
+
+				Y = A;
+
+				CPU_cycles = 2;
+				PC++;
+
+				SET_FLAG(FLAG_N, (Y >> 7));
+				SET_FLAG(FLAG_Z, (Y == 0));
 
 				break;
 
@@ -1462,14 +1755,34 @@ public:
 
 				break;
 
+			case 0xaa: // TAX
+				str += "TAX";
+
+				X = A;
+
+				CPU_cycles = 2;
+				PC++;
+
+				SET_FLAG(FLAG_N, (X >> 7));
+				SET_FLAG(FLAG_Z, (X == 0));
+
+				break;
+
 			case 0xd8: // CLD
 				str += "CLD";
 
 				SET_FLAG_1(FLAG_D);
 
-				PPU_cycles = 2;
+				CPU_cycles = 2;
 				PC++;
 
+				break;
+
+			case 0xea: // NOP
+				str += "NOP";
+
+				PC++;
+				CPU_cycles = 2;
 				break;
 
 			default:
