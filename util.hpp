@@ -27,8 +27,7 @@ namespace
 #define KB (B * 1024)
 	//#define MB (KB * 1024)
 
-#define LOG_ADD_LINE(str)		log += (std::string)str + "\n"; \
-								logLines++;
+#define LOG_ADD_LINE(str)		{ log += (std::string) str + "\n"; logLines++; }
 
 #define GET_FLAG(bit)           ((SR & (1 << bit)) >> bit)
 #define SET_FLAG_1(bit)           SR |= (1 << bit)

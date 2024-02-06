@@ -37,7 +37,7 @@ int WinMain()
 
 	int32_t memoryScroll = 0;
 
-	uint32_t sDown = 0, fDown = 0, spaceDown = 0;
+	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown;
 
 	bool running = false;
 
@@ -89,6 +89,11 @@ int WinMain()
 		else
 			spaceDown = 0;
 
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::I))
+			iDown++;
+		else
+			iDown = 0;
+
 		if (spaceDown == 1)
 			running ^= true;
 
@@ -111,6 +116,21 @@ int WinMain()
 			emu.frameFinished = false;
 
 			updateRegistersText();
+		}
+
+		if (iDown == 1)
+		{
+			for (unsigned int i = 0; i < 3; i++)
+			{
+
+				while (emu.CPU_cycles > 0)
+					emu.cycle(true);
+				emu.cycle(true);
+
+				emu.frameFinished = false;
+
+				updateRegistersText();
+			}
 		}
 
 		while (emu.logLines > 34)
