@@ -239,12 +239,12 @@ public:
 		push1B(value & 0xff);
 	}
 
-	uint8_t pull2B()
+	uint16_t pull2B()
 	{
 		uint8_t lo = pull1B();
-		uint16_t hi = pull1B();
+		uint8_t hi = pull1B();
 
-		return (hi << 8) | lo;
+		return ((uint16_t)hi << 8) | lo;
 	}
 
 	uint8_t readIndexedIndirectX(uint8_t d)

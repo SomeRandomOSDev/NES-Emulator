@@ -12,7 +12,7 @@ int WinMain()
 		return 1;
 
 	NESEmulator emu;
-	emu.powerUp();
+	//emu.powerUp();
 	emu.loadFromiNES(__argv[0 + 1]);
 	emu.PC = 0xC000; // nestest.nes without PPU
 
@@ -66,7 +66,7 @@ int WinMain()
 			if (event.type == event.MouseWheelMoved)
 			{
 				if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl))
-					memoryScroll -= 16 * event.mouseWheel.delta;
+					memoryScroll -= 256 / 8 * event.mouseWheel.delta;
 				else
 					memoryScroll -= event.mouseWheel.delta;
 			}
@@ -133,7 +133,7 @@ int WinMain()
 			}
 		}
 
-		while (emu.logLines > 34)
+		while (emu.logLines > 32)
 		{
 			emu.log.erase(0, emu.log.find("\n") + 1);
 			emu.logLines--;

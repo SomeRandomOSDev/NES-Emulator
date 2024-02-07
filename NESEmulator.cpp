@@ -334,7 +334,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0x20: // JSR absolute
 			str += "JSR $" + HEX(arg16);
 
-			push1B(PC + 2);
+			push2B(PC + 2);
 
 			PC = arg16;
 
@@ -854,10 +854,12 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x60: // RTS
+			str += "RTS";
+
 			PC = pull2B();
 
 			CPU_cycles = 6;
-			//PC++;
+			PC++;
 
 			break;
 
@@ -1680,6 +1682,183 @@ std::string NESEmulator::CPU_cycle()
 
 			break;
 
+		case 0xc4: // CPY zeropage
+			str += "CPY $" + HEX(arg8);
+
+			tmp8 = Y - CPU_readMemory1B(arg8);
+
+			SET_FLAG(FLAG_C, Y >= CPU_readMemory1B(arg8));
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 3;
+			PC += 2;
+
+			break;
+
+		case 0xc5: // CMP zeropage
+			str += "CMP $" + HEX(arg8);
+
+			tmp8 = A - CPU_readMemory1B(arg8);
+
+			SET_FLAG(FLAG_C, A >= CPU_readMemory1B(arg8));
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 3;
+			PC += 2;
+
+			break;
+
+		case 0xc6: // DEC zeropage
+			str += "DEC $" + HEX(arg8);
+
+			tmp8 = CPU_readMemory1B(arg8) - 1;
+			CPU_writeMemory1B(arg8, tmp8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 5;
+			PC += 2;
+
+			break;
+
+		case 0xc8: // INY
+			str += "INY";
+
+			Y++;
+
+			CPU_cycles = 2;
+			PC++;
+
+			SET_FLAG(FLAG_N, (Y >> 7));
+			SET_FLAG(FLAG_Z, (Y == 0));
+
+			break;
+
+		case 0xc9: // CMP imm8
+			str += "CMP #$" + HEX(arg8);
+
+			tmp8 = A - arg8;
+
+			SET_FLAG(FLAG_C, A >= arg8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 2;
+			PC += 2;
+
+			break;
+
+		case 0xca: // DEX
+			str += "DEX";
+
+			X--;
+
+			CPU_cycles = 2;
+			PC++;
+
+			SET_FLAG(FLAG_N, (X >> 7));
+			SET_FLAG(FLAG_Z, (X == 0));
+
+			break;
+
+		case 0xcc: // CPY absolute
+			str += "CPY $" + HEX(arg16);
+
+			tmp8 = Y - CPU_readMemory1B(arg16);
+
+			SET_FLAG(FLAG_C, Y >= CPU_readMemory1B(arg16));
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 4;
+			PC += 3;
+
+			break;
+
+		case 0xcd: // CMP absolute
+			str += "CMP $" + HEX(arg16);
+
+			tmp8 = A - CPU_readMemory1B(arg16);
+
+			SET_FLAG(FLAG_C, A >= CPU_readMemory1B(arg16));
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 4;
+			PC += 3;
+
+			break;
+
+		case 0xce: // DEC absolute
+			str += "DEC $" + HEX(arg16);
+
+			tmp8 = CPU_readMemory1B(arg16) - 1;
+			CPU_writeMemory1B(arg16, tmp8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 6;
+			PC += 3;
+
+			break;
+
+		case 0xd0: // BNE relative
+			str += "BNE $" + HEX(arg8);
+
+			CPU_cycles = 2;
+
+			if (!GET_FLAG(FLAG_Z))
+			{
+				CPU_cycles++;
+				PC += (int8_t)arg8;
+			}
+
+			if (PCPage != (PC >> 8))
+				CPU_cycles++;
+
+			PC += 2;
+
+			break;
+
+		case 0xd1: // CMP (indirect), Y
+			str += "CMP ($" + HEX(arg8) + "), Y";
+
+			tmp8 = A - readIndirectIndexedY(arg8, pageBoundaryCrossed);
+
+			SET_FLAG(FLAG_C, A >= readIndirectIndexedY(arg8, pageBoundaryCrossed));
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 5 + pageBoundaryCrossed;
+			PC += 2;
+
+			break;
+
+		case 0xd5: // CMP zeropage, X
+			str += "CMP $" + HEX(arg8) + ", X";
+
+			tmp8 = A - CPU_readMemory1B(zeropageIndexedXAddress(arg8));
+
+			SET_FLAG(FLAG_C, A >= CPU_readMemory1B(zeropageIndexedXAddress(arg8)));
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 4;
+			PC += 2;
+
+			break;
+
 		case 0xd8: // CLD
 			str += "CLD";
 
@@ -1695,6 +1874,24 @@ std::string NESEmulator::CPU_cycle()
 
 			PC++;
 			CPU_cycles = 2;
+			break;
+
+		case 0xf0: // BEQ relative
+			str += "BEQ $" + HEX(arg8);
+
+			CPU_cycles = 2;
+
+			if (GET_FLAG(FLAG_Z))
+			{
+				CPU_cycles++;
+				PC += (int8_t)arg8;
+			}
+
+			if (PCPage != (PC >> 8))
+				CPU_cycles++;
+
+			PC += 2;
+
 			break;
 
 		default:
