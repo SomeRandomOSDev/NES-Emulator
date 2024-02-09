@@ -14,10 +14,7 @@ int WinMain()
 	NESEmulator emu;
 	//emu.powerUp();
 	emu.loadFromiNES(__argv[0 + 1]);
-	emu.PC = 0xC000; // nestest.nes without PPU
-
-	//uint8_t basicAdd[] = { 0xa9, 0x50, 0x69, 0x12, 0x85, 0x00 };
-	//emu.loadFromBuffer(0x200, &basicAdd[0], 6);
+	//emu.PC = 0xC000; // nestest.nes in automation
 
 	sf::Font font;
 	font.loadFromFile("resources/font.ttf");
@@ -41,13 +38,14 @@ int WinMain()
 
 	bool running = false;
 
-	sf::RenderWindow window, window_cpuDebug;
+	sf::RenderWindow window, window_cpuDebug, window_ppuDebug;
 	window_cpuDebug.create(sf::VideoMode(800, 550), "NES Emulator | CPU Debug");
+	window_ppuDebug.create(sf::VideoMode(800, 550), "NES Emulator | PPU Debug");
 	window.create(sf::VideoMode(800, 550), "NES Emulator");
 	window.setFramerateLimit(60);
 	window.setVerticalSyncEnabled(false);
 
-	while (window.isOpen() && window_cpuDebug.isOpen())
+	while (window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen())
 	{
 		sf::Event event;
 		while (window.pollEvent(event))
@@ -70,6 +68,13 @@ int WinMain()
 				else
 					memoryScroll -= event.mouseWheel.delta;
 			}
+		}
+		while (window_ppuDebug.pollEvent(event))
+		{
+			if (event.type == sf::Event::Closed)
+				window_ppuDebug.close();
+			if (event.type == sf::Event::Resized)
+				window_ppuDebug.setView(sf::View(sf::FloatRect(0, 0, (float)event.size.width, (float)event.size.height)));
 		}
 
 		memoryScroll = std::max(0, std::min((int)memoryScroll, 0x2000 - 24));
@@ -144,6 +149,7 @@ int WinMain()
 
 		window.clear(sf::Color(128, 128, 128));
 		window_cpuDebug.clear(sf::Color(128, 128, 128));
+		window_ppuDebug.clear(sf::Color(128, 128, 128));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -185,6 +191,8 @@ int WinMain()
 
 		window.display();
 		window_cpuDebug.display();
+		window_ppuDebug.display();
 	}
+
 	return 0;
 }

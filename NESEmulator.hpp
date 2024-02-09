@@ -42,6 +42,13 @@ public:
 
 		frameFinished = false;
 
+		PPU_CTRL = 0x00;
+		PPU_MASK = 0x00;
+		PPU_STATUS = 0b10100000;
+		w = false;
+		v = 0x0000;
+		ppuReadBuffer = 0x00;
+
 		LOG_ADD_LINE("POWER_UP");
 	}
 
@@ -55,6 +62,12 @@ public:
 		PPU_scanline = -1;
 		cycleCounter = 0;
 		frameFinished = false;
+
+		PPU_CTRL = 0x00;
+		PPU_MASK = 0x00;
+		PPU_STATUS &= 0b10000000;
+		w = false;
+		ppuReadBuffer = 0x00;
 
 		LOG_ADD_LINE("RESET");
 	}
@@ -108,10 +121,53 @@ public:
 	void CPU_writeMemory1B(uint16_t address, uint8_t value)
 	{
 		if (address < 0x2000)
+		{
 			CPU_memory[address % 0x800] = value;
+			return;
+		}
 
 		else if (address < 0x4000) // PPU registers
-			;
+		{
+			uint8_t regNb = address % 8;
+
+			switch (regNb)
+			{
+			case 0x0000: // PPU CTRL
+				PPU_CTRL = value;
+
+				break;
+
+			case 0x0001: // PPU MASK
+				PPU_MASK = value;
+
+				break;
+
+			case 0x0006: // PPU ADDRESS
+				if (w == 0)
+				{
+					v &= 0x00ff;
+					v |= (uint16_t)value << 8;
+				}
+				else
+				{
+					v &= 0xff00;
+					v |= value;
+				}
+
+				w ^= true;
+
+				break;
+
+			case 0x0007: // PPU DATA
+				PPU_writeMemory1B(v, value);
+
+				v += REG_GET_FLAG(PPU_CTRL, PPU_CTRL_VRAM_ADDRESS_INCREMENT_DIRECTION) ? 32 : 1;
+
+				break;
+			}
+
+			return;
+		}
 
 		else if (address < 0x4018) // APU and IO registers
 			;
@@ -145,7 +201,36 @@ public:
 			return CPU_memory[address % 0x800];
 
 		if (address < 0x4000) // PPU registers
-			return 0;
+		{
+			uint8_t regNb = address % 8;
+
+			switch (regNb)
+			{
+			case 0x0002:
+			{
+				w = false;
+
+				uint8_t value = PPU_STATUS;
+
+				REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_VBLANK);
+
+				return value;
+			}
+
+			case 0x0007:
+				if (address <= 0x3eff)
+				{
+					uint8_t value = ppuReadBuffer;
+					ppuReadBuffer = PPU_readMemory1B(v);
+					return value;
+				}
+				else
+				{
+					ppuReadBuffer = PPU_readMemory1B(v);
+					return PPU_readMemory1B(v);
+				}
+			}
+		}
 
 		if (address < 0x4018) // APU and IO registers
 			return 0;
@@ -173,6 +258,13 @@ public:
 
 	void PPU_writeMemory1B(uint16_t address, uint8_t value)
 	{
+		address %= 0x4000;
+
+		if (address >= 0x3000 && address <= 0x3eff) // mirrors of 0x2000 - 0x2eff
+			address -= 0x1000;
+		while (address >= 0x3f20) // mirrors of 0x3f00 - 0x3f1f
+			address -= 0x0020;
+
 		if (address == 0x3f10)
 			address = 0x3f00;
 		if (address == 0x3f14)
@@ -187,6 +279,13 @@ public:
 
 	uint8_t PPU_readMemory1B(uint16_t address)
 	{
+		address %= 0x4000;
+
+		if (address >= 0x3000 && address <= 0x3eff) // mirrors of 0x2000 - 0x2eff
+			address -= 0x1000;
+		while (address >= 0x3f20) // mirrors of 0x3f00 - 0x3f1f
+			address -= 0x0020;
+
 		if (address == 0x3f10)
 			address = 0x3f00;
 		if (address == 0x3f14)
@@ -329,4 +428,8 @@ public:
 
 	std::string log;
 	uint32_t logLines;
+
+	bool w; // write latch
+	uint16_t v; // VRAM address
+	uint8_t ppuReadBuffer;
 };

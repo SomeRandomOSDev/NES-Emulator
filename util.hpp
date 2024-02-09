@@ -29,11 +29,17 @@ namespace
 
 #define LOG_ADD_LINE(str)		{ log += (std::string) str + "\n"; logLines++; }
 
-#define GET_FLAG(bit)           ((SR & (1 << bit)) >> bit)
-#define SET_FLAG_1(bit)           SR |= (1 << bit)
-#define SET_FLAG_0(bit)         SR &= ~((uint8_t)(1 << bit))
-#define TOGGLE_FLAG(bit)        SR ^= (1 << bit)
-#define SET_FLAG(bit, value)    SET_FLAG_0(bit); SR |= (value << bit)
+#define REG_GET_FLAG(reg, bit)           ((reg & (1 << bit)) >> bit)
+#define REG_SET_FLAG_1(reg, bit)           reg |= (1 << bit)
+#define REG_SET_FLAG_0(reg, bit)         reg &= ~((uint8_t)(1 << bit))
+#define REG_TOGGLE_FLAG(reg, bit)        reg ^= (1 << bit)
+#define REG_SET_FLAG(reg, bit, value)    SET_FLAG_0(bit); reg |= (value << bit)
+
+#define GET_FLAG(bit)           REG_GET_FLAG(SR, bit)
+#define SET_FLAG_1(bit)         REG_SET_FLAG_1(SR, bit)
+#define SET_FLAG_0(bit)         REG_SET_FLAG_0(SR, bit)
+#define TOGGLE_FLAG(bit)        REG_TOGGLE_FLAG(SR, bit)
+#define SET_FLAG(bit, value)    REG_SET_FLAG(SR, bit, value)
 
 #define FLAG_C 0
 #define FLAG_Z 1
@@ -49,7 +55,6 @@ namespace
 #define FLAG_INTERRUPT_DISABLE	FLAG_I
 #define FLAG_DECIMAL			FLAG_D
 
-
 #define FLAG_OVERFLOW			FLAG_V
 #define FLAG_NEGATIVE			FLAG_N
 
@@ -57,6 +62,31 @@ namespace
 #define RESET_VECTOR			0xfffc
 #define IRQ_VECTOR				0xfffe
 #define BRK_VECTOR				IRQ_VECTOR
+
+#define PPU_CTRL				CPU_memory[0x2000]
+#define PPU_MASK				CPU_memory[0x2001]
+#define PPU_STATUS				CPU_memory[0x2002]
+
+#define PPU_STATUS_SPRITE_OVERFLOW 5
+#define PPU_STATUS_SPRITE_0_HIT    6
+#define PPU_STATUS_VBLANK          7
+
+#define PPU_MASK_GRAYSCALE         0
+#define PPU_MASK_SHOW_BG_LEFT      1
+#define PPU_MASK_SHOW_SPRITES_LEFT 2
+#define PPU_MASK_SHOW_BG           3
+#define PPU_MASK_SHOW_SPRITES      4
+#define PPU_MASK_EMPHASIZE_RED     5
+#define PPU_MASK_EMPHASIZE_GREEN   6
+#define PPU_MASK_EMPHASIZE_BLUE    7
+
+#define PPU_CTRL_NAMETABLE_ADDRESS						0
+#define PPU_CTRL_VRAM_ADDRESS_INCREMENT_DIRECTION		2
+#define PPU_CTRL_SPRITE_PATTERN_TABLE_ADDRESS_8x8		3
+#define PPU_CTRL_BG_PATTERN_TABLE_ADDRESS				4
+#define PPU_CTRL_SPRITE_SIZE						    5
+#define PPU_CTRL_MASTER_SLAVE						    6
+#define PPU_CTRL_NMI									7
 
 #define updateRegistersText() registers.setString("A:  #$" + HEX(emu.A) + "\n" + \
 												  "X:  #$" + HEX(emu.X) + "\n" + \

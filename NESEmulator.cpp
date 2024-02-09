@@ -2,14 +2,17 @@
 
 void NESEmulator::NMI()
 {
-	push2B(PC);
-	SET_FLAG_0(FLAG_B);
-	SET_FLAG_1(FLAG_I);
-	push1B(SR);
+	if (REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NMI))
+	{
+		push2B(PC);
+		SET_FLAG_0(FLAG_B);
+		SET_FLAG_1(FLAG_I);
+		push1B(SR);
 
-	PC = CPU_readMemory2B(NMI_VECTOR);
+		PC = CPU_readMemory2B(NMI_VECTOR);
 
-	CPU_cycles = 8;
+		CPU_cycles = 8;
+	}
 }
 
 void NESEmulator::INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_FLAG)
@@ -50,12 +53,18 @@ void NESEmulator::PPU_cycle()
 		screen2.setPixel(PPU_cycles, PPU_scanline, color);
 	}
 
+	if (PPU_scanline == 261 && PPU_cycles == 1)
+	{
+		REG_SET_FLAG_1(PPU_STATUS, PPU_STATUS_VBLANK);
+		NMI();
+	}
+
 	PPU_cycles++;
 	if (PPU_cycles >= 341)
 	{
 		PPU_cycles = 0;
 		PPU_scanline++;
-		if (PPU_scanline >= 261)
+		if (PPU_scanline >= 262)
 		{
 			PPU_scanline = -1;
 			screen = screen2;
@@ -82,7 +91,7 @@ std::string NESEmulator::CPU_cycle()
 
 		CPU_cycles = 1;
 
-		switch (opcode)
+		switch (opcode) // TO ADD: SBC
 		{
 		case 0x00:
 			str += "BRK #$" + HEX(PC + 1);
@@ -870,7 +879,7 @@ std::string NESEmulator::CPU_cycle()
 			A = (uint8_t)tmp16;
 
 			SET_FLAG(FLAG_C, (tmp16 > 0xff));
-			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)arg8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)readIndexedIndirectX(arg8)) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
 			SET_FLAG(FLAG_Z, (tmp16 == 0));
 			SET_FLAG(FLAG_N, (A >> 7));
 
@@ -886,7 +895,7 @@ std::string NESEmulator::CPU_cycle()
 			A = (uint8_t)tmp16;
 
 			SET_FLAG(FLAG_C, (tmp16 > 0xff));
-			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)arg8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)CPU_readMemory1B(arg8)) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
 			SET_FLAG(FLAG_Z, (tmp16 == 0));
 			SET_FLAG(FLAG_N, (A >> 7));
 
@@ -1859,13 +1868,176 @@ std::string NESEmulator::CPU_cycle()
 
 			break;
 
+		case 0xd6: // DEC zeropage, X
+			str += "DEC $" + HEX(arg8) + ", X";
+
+			tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8)) - 1;
+			CPU_writeMemory1B(zeropageIndexedXAddress(arg8), tmp8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 6;
+			PC += 2;
+
+			break;
+
 		case 0xd8: // CLD
 			str += "CLD";
 
-			SET_FLAG_1(FLAG_D);
+			SET_FLAG_0(FLAG_D);
 
 			CPU_cycles = 2;
 			PC++;
+
+			break;
+
+		case 0xd9: // CMP absolute, Y
+			str += "CMP $" + HEX(arg16) + ", Y";
+
+			tmp8 = A - CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
+
+			SET_FLAG(FLAG_C, A >= CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed)));
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 4 + pageBoundaryCrossed;
+			PC += 3;
+
+			break;
+
+		case 0xdd: // CMP absolute, X
+			str += "CMP $" + HEX(arg16) + ", X";
+
+			tmp8 = A - CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
+
+			SET_FLAG(FLAG_C, A >= CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed)));
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 4 + pageBoundaryCrossed;
+			PC += 3;
+
+			break;
+
+		case 0xde: // DEC absolute, X
+			str += "DEC $" + HEX(arg16) + ", X";
+
+			tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed)) - 1;
+			CPU_writeMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed), tmp8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 7;
+			PC += 3;
+
+			break;
+
+		case 0xe0: // CPX imm8
+			str += "CPX #$" + HEX(arg8);
+
+			tmp8 = X - arg8;
+
+			SET_FLAG(FLAG_C, X >= arg8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 2;
+			PC += 2;
+
+			break;
+
+		case 0xe1: // SBC (indirect, X)
+			str += "SBC ($" + HEX(arg8) + ", X)";
+
+			tmp16 = (uint16_t)A - (uint16_t)readIndexedIndirectX(arg8) - (uint16_t)GET_FLAG(FLAG_C);
+			A = (uint8_t)tmp16;
+
+			SET_FLAG(FLAG_C, (tmp16 > 0xff));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)readIndexedIndirectX(arg8)) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_Z, (tmp16 == 0));
+			SET_FLAG(FLAG_N, (A >> 7));
+
+			CPU_cycles = 6;
+			PC += 2;
+
+			break;
+
+		case 0xe4: // CPX zeropage
+			str += "CPX $" + HEX(arg8);
+
+			tmp8 = X - CPU_readMemory1B(arg8);
+
+			SET_FLAG(FLAG_C, X >= CPU_readMemory1B(arg8));
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 3;
+			PC += 2;
+
+			break;
+
+		case 0xe5: // SBC zeropage
+			str += "SBC $" + HEX(arg8);
+
+			tmp16 = (uint16_t)A - (uint16_t)CPU_readMemory1B(arg8) - (uint16_t)GET_FLAG(FLAG_C);
+			A = (uint8_t)tmp16;
+
+			SET_FLAG(FLAG_C, (tmp16 > 0xff));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)CPU_readMemory1B(arg8)) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_Z, (tmp16 == 0));
+			SET_FLAG(FLAG_N, (A >> 7));
+
+			CPU_cycles = 3;
+			PC += 2;
+
+			break;
+
+		case 0xe6: // INC zeropage
+			str += "INC $" + HEX(arg8);
+
+			tmp8 = CPU_readMemory1B(arg8) + 1;
+			CPU_writeMemory1B(arg8, tmp8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 5;
+			PC += 2;
+
+			break;
+
+		case 0xe8: // INX
+			str += "INX";
+
+			X++;
+
+			CPU_cycles = 2;
+			PC++;
+
+			SET_FLAG(FLAG_N, (X >> 7));
+			SET_FLAG(FLAG_Z, (X == 0));
+
+			break;
+
+		case 0xe9: // SBC imm8
+			str += "SBC #$" + HEX(arg8);
+
+			tmp16 = (uint16_t)A - (uint16_t)arg8 - (uint16_t)GET_FLAG(FLAG_C);
+			A = (uint8_t)tmp16;
+
+			SET_FLAG(FLAG_C, (tmp16 > 0xff));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)arg8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_Z, (tmp16 == 0));
+			SET_FLAG(FLAG_N, (A >> 7));
+
+			CPU_cycles = 2;
+			PC += 2;
 
 			break;
 
@@ -1874,6 +2046,52 @@ std::string NESEmulator::CPU_cycle()
 
 			PC++;
 			CPU_cycles = 2;
+			break;
+
+		case 0xec: // CPX absolute
+			str += "CPX $" + HEX(arg16);
+
+			tmp8 = X - CPU_readMemory1B(arg16);
+
+			SET_FLAG(FLAG_C, X >= CPU_readMemory1B(arg16));
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 4;
+			PC += 3;
+
+			break;
+
+		case 0xed: // SBC absolute
+			str += "SBC $" + HEX(arg16);
+
+			tmp8 = CPU_readMemory1B(arg16);
+			tmp16 = (uint16_t)A - (uint16_t)tmp8 - (uint16_t)GET_FLAG(FLAG_C);
+			A = (uint8_t)tmp16;
+
+			SET_FLAG(FLAG_C, (tmp16 > 0xff));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)tmp8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_Z, (tmp16 == 0));
+			SET_FLAG(FLAG_N, (A >> 7));
+
+			CPU_cycles = 4;
+			PC += 3;
+
+			break;
+
+		case 0xee: // INC absolute
+			str += "INC $" + HEX(arg16);
+
+			tmp8 = CPU_readMemory1B(arg16) + 1;
+			CPU_writeMemory1B(arg16, tmp8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 6;
+			PC += 2;
+
 			break;
 
 		case 0xf0: // BEQ relative
@@ -1890,6 +2108,112 @@ std::string NESEmulator::CPU_cycle()
 			if (PCPage != (PC >> 8))
 				CPU_cycles++;
 
+			PC += 2;
+
+			break;
+
+		case 0xf1: // SBC (indirect), Y
+			str += "SBC ($" + HEX(arg8) + "), Y";
+
+			tmp8 = readIndirectIndexedY(arg8, pageBoundaryCrossed);
+			tmp16 = (uint16_t)A - (uint16_t)tmp8 - (uint16_t)GET_FLAG(FLAG_C);
+			A = (uint8_t)tmp16;
+
+			SET_FLAG(FLAG_C, (tmp16 > 0xff));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)tmp8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_Z, (tmp16 == 0));
+			SET_FLAG(FLAG_N, (A >> 7));
+
+			CPU_cycles = 5 + pageBoundaryCrossed;
+			PC += 2;
+
+			break;
+
+		case 0xf5: // SBC zeropage, X
+			str += "SBC ($" + HEX(arg8) + "), X";
+
+			tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
+			tmp16 = (uint16_t)A - (uint16_t)tmp8 - (uint16_t)GET_FLAG(FLAG_C);
+			A = (uint8_t)tmp16;
+
+			SET_FLAG(FLAG_C, (tmp16 > 0xff));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)tmp8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_Z, (tmp16 == 0));
+			SET_FLAG(FLAG_N, (A >> 7));
+
+			CPU_cycles = 4;
+			PC += 2;
+
+			break;
+
+		case 0xf6: // INC zeropage, X
+			str += "INC $" + HEX(arg8) + ", X";
+
+			tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8)) + 1;
+			CPU_writeMemory1B(zeropageIndexedXAddress(arg8), tmp8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 6;
+			PC += 2;
+
+			break;
+
+		case 0xf8: // SED
+			str += "SED";
+
+			SET_FLAG_1(FLAG_D);
+
+			CPU_cycles = 2;
+			PC++;
+
+			break;
+
+		case 0xf9: // SBC absolute, Y
+			str += "SBC ($" + HEX(arg16) + "), Y";
+
+			tmp8 = CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
+			tmp16 = (uint16_t)A - (uint16_t)tmp8 - (uint16_t)GET_FLAG(FLAG_C);
+			A = (uint8_t)tmp16;
+
+			SET_FLAG(FLAG_C, (tmp16 > 0xff));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)tmp8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_Z, (tmp16 == 0));
+			SET_FLAG(FLAG_N, (A >> 7));
+
+			CPU_cycles = 4 + pageBoundaryCrossed;
+			PC += 3;
+
+			break;
+
+		case 0xfd: // SBC absolute, X
+			str += "SBC ($" + HEX(arg16) + "), X";
+
+			tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
+			tmp16 = (uint16_t)A - (uint16_t)tmp8 - (uint16_t)GET_FLAG(FLAG_C);
+			A = (uint8_t)tmp16;
+
+			SET_FLAG(FLAG_C, (tmp16 > 0xff));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)tmp8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_Z, (tmp16 == 0));
+			SET_FLAG(FLAG_N, (A >> 7));
+
+			CPU_cycles = 4 + pageBoundaryCrossed;
+			PC += 3;
+
+			break;
+
+		case 0xfe: // INC absolute, X
+			str += "INC $" + HEX(arg16) + ", X";
+
+			tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed)) + 1;
+			CPU_writeMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed), tmp8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 7;
 			PC += 2;
 
 			break;
