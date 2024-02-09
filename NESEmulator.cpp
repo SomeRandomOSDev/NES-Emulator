@@ -29,9 +29,18 @@ void NESEmulator::INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_
 	}
 }
 
-void NESEmulator::cycle(bool printLog)
+void NESEmulator::cycle(bool printLog, bool emulateArtifacts)
 {
-	PPU_cycle();
+	if (controllerLatch1)
+	{
+		for (unsigned int i = 0; i < 8; i++)
+		{
+			controller1ShiftRegister &= ~(1 << i);
+			controller1ShiftRegister |= ((sf::Keyboard::isKeyPressed(keyMap[7 - i])) << i);
+		}
+	}
+
+	PPU_cycle(emulateArtifacts);
 
 	if (cycleCounter == 0)
 	{
@@ -44,12 +53,50 @@ void NESEmulator::cycle(bool printLog)
 	cycleCounter %= 3;
 }
 
-void NESEmulator::PPU_cycle()
+void NESEmulator::PPU_cycle(bool emulateArtifacts)
 {
-	if (!(PPU_cycles < 0 || PPU_cycles > 255 || PPU_scanline < 0 || PPU_scanline >= 240))
+	if (!(PPU_cycles < 0 || PPU_cycles > 255 || PPU_scanline < 0 || PPU_scanline > 239))
 	{
-		uint8_t colorCode = randomBool(re) ? 0x30 : 0x3f;
+		uint8_t tileX = PPU_cycles / 8, tileY = PPU_scanline / 8;
+		uint8_t attributeTileX = PPU_cycles / 32, attributeTileY = PPU_scanline / 32;
+		uint8_t nametableX = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_X),
+				nametableY = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_Y);
+		uint16_t nametableBase = (nametableX == 0 && nametableY == 0) ? 0x2000 :
+			((nametableX == 1 && nametableY == 0) ? 0x2400 :
+				((nametableX == 0 && nametableY == 1) ? 0x2800 : 0x2c00));
+		uint16_t attributeTableBase = nametableBase + 0x3c0;
+		uint8_t attributeByte = PPU_readMemory1B(attributeTableBase + attributeTileY * 8 + attributeTileX);
+		uint8_t palette_bottomRight = (attributeByte >> 6),
+				palette_bottomLeft = (attributeByte >> 4) & 0b11,
+				palette_topRight = (attributeByte >> 2) & 0b11,
+				palette_topLeft = attributeByte & 0b11;
+		uint8_t palette = 0;
+		if (attributeTileY & 1) // Bottom 
+		{
+			if (attributeTileX & 1) // Right
+				palette = palette_bottomRight;
+			else					// Left
+				palette = palette_bottomLeft;
+		}
+		else // Top
+		{
+			if (attributeTileX & 1) // Right
+				palette = palette_topRight;
+			else					// Left
+				palette = palette_topLeft;
+		}
+		uint8_t bgTile = NametableGetTile(tileX, tileY, nametableBase);
+		uint8_t tileOffsetX = PPU_cycles - tileX * 8, tileOffsetY = PPU_scanline - tileY * 8;
+		bool patternTable = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_BG_PATTERN_TABLE_ADDRESS);
+		uint8_t row_lo = GetRowFromTile(0, patternTable, bgTile, tileOffsetY),
+				row_hi = GetRowFromTile(1, patternTable, bgTile, tileOffsetY);
+		uint8_t paletteIndex_lo = REG_GET_FLAG(row_lo, 7 - tileOffsetX),
+				paletteIndex_hi = REG_GET_FLAG(row_hi, 7 - tileOffsetX);
+		uint8_t paletteIndex = (paletteIndex_hi << 1) | paletteIndex_lo;
+		uint8_t colorCode = GetColorCodeFromPalette(palette, Background, paletteIndex);
 		sf::Color color = NESColorToRGB(colorCode);
+		if(emulateArtifacts)
+			color = RotateHue(color, 5.f * (colorCode >> 4)); // Differential Phase Distortion
 		screen2.setPixel(PPU_cycles, PPU_scanline, color);
 	}
 
@@ -68,18 +115,20 @@ void NESEmulator::PPU_cycle()
 	{
 		PPU_cycles = 0;
 		PPU_scanline++;
-		if (PPU_scanline >= 261)
-		{
-			PPU_scanline = -1;
-			screen = screen2;
-			frameFinished = true;
-		}
+	}
+	if (PPU_scanline >= 261)
+	{
+		PPU_scanline = -1;
+		screen = screen2;
+		frameFinished = true;
 	}
 }
 
 std::string NESEmulator::CPU_cycle()
 {
 	std::string str = "";
+	if(!stopCPU)
+	{
 	if (CPU_cycles == 0)
 	{
 		uint8_t opcode = CPU_readMemory1B(PC);
@@ -253,7 +302,7 @@ std::string NESEmulator::CPU_cycle()
 			SET_FLAG(FLAG_Z, (A == 0));
 
 			CPU_cycles = 5 + pageBoundaryCrossed;
-			PC += 3;
+			PC += 2;
 
 			break;
 
@@ -453,7 +502,7 @@ std::string NESEmulator::CPU_cycle()
 			SET_FLAG(FLAG_Z, (A == 0));
 
 			CPU_cycles = 2;
-			PC += 1;
+			PC++;
 
 			break;
 
@@ -601,6 +650,27 @@ std::string NESEmulator::CPU_cycle()
 			SET_FLAG(FLAG_Z, (A == 0));
 
 			CPU_cycles = 4 + pageBoundaryCrossed;
+			PC += 3;
+
+			break;
+
+		case 0x3e: // ROL absolute, X
+			str += "ROL $" + HEX(arg16) + ", X";
+
+			tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
+
+			tmp1 = GET_FLAG(FLAG_C);
+
+			SET_FLAG(FLAG_C, tmp8 >> 7);
+			tmp8 <<= 1;
+			tmp8 |= (uint8_t)tmp1;
+
+			CPU_writeMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed), tmp8);
+
+			SET_FLAG(FLAG_N, (tmp8 >> 7));
+			SET_FLAG(FLAG_Z, (tmp8 == 0));
+
+			CPU_cycles = 7;
 			PC += 3;
 
 			break;
@@ -931,6 +1001,9 @@ std::string NESEmulator::CPU_cycle()
 
 		case 0x68: // PLA
 			A = pull1B();
+
+			SET_FLAG(FLAG_N, (A >> 7));
+			SET_FLAG(FLAG_Z, (A == 0));
 
 			CPU_cycles = 4;
 			PC++;
@@ -1349,8 +1422,8 @@ std::string NESEmulator::CPU_cycle()
 			CPU_cycles = 2;
 			PC++;
 
-			SET_FLAG(FLAG_N, (S >> 7));
-			SET_FLAG(FLAG_Z, (S == 0));
+			//SET_FLAG(FLAG_N, (S >> 7));
+			//SET_FLAG(FLAG_Z, (S == 0));
 
 			break;
 
@@ -2032,11 +2105,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xe9: // SBC imm8
 			str += "SBC #$" + HEX(arg8);
 
-			tmp16 = (uint16_t)A - (uint16_t)arg8 - (uint16_t)GET_FLAG(FLAG_C);
+			tmp16 = (uint16_t)A + ((uint16_t)arg8 ^ 0x00ff) + (uint16_t)GET_FLAG(FLAG_C);
 			A = (uint8_t)tmp16;
 
 			SET_FLAG(FLAG_C, (tmp16 > 0xff));
-			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ (uint16_t)arg8) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
+			SET_FLAG(FLAG_V, ((~((uint16_t)A ^ ((uint16_t)arg8 ^ 0x00ff)) & ((uint16_t)A ^ (uint16_t)tmp16)) >> 7));
 			SET_FLAG(FLAG_Z, (tmp16 == 0));
 			SET_FLAG(FLAG_N, (A >> 7));
 
@@ -2094,7 +2167,7 @@ std::string NESEmulator::CPU_cycle()
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
 
 			CPU_cycles = 6;
-			PC += 2;
+			PC += 3;
 
 			break;
 
@@ -2223,13 +2296,17 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		default:
-			str += "Unhandled opcode";
+			str += "Illegal opcode";
+
+			stopCPU = true;
 
 			break;
 		}
 	}
 
 	CPU_cycles--;
+
+	}
 
 	return str;
 }

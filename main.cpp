@@ -95,7 +95,7 @@ int WinMain()
 			//for(uint16_t i = 0; i < 1.789773 * 1000000 * 3; i++)
 			//for (uint16_t i = 0; i < 21.477272 * 1000000 / 4; i++)
 			while(!emu.frameFinished)
-				emu.cycle(true);
+				emu.cycle(true, true);
 
 			emu.frameFinished = false;
 
@@ -104,7 +104,7 @@ int WinMain()
 
 		if (sDown == 1)
 		{
-			emu.cycle(true);
+			emu.cycle(true, true);
 
 			emu.frameFinished = false;
 
@@ -117,8 +117,8 @@ int WinMain()
 			{
 
 				while (emu.CPU_cycles > 0)
-					emu.cycle(true);
-				emu.cycle(true);
+					emu.cycle(true, true);
+				emu.cycle(true, true);
 
 				emu.frameFinished = false;
 

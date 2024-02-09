@@ -1,12 +1,13 @@
 #pragma once
 
 #include <sstream>
-#include <random>
+//#include <random>
+#include <algorithm>
 
 namespace
 {
-	std::default_random_engine re((unsigned int)time(0));
-	std::uniform_int_distribution<int> randomBool{ 0, 1 };
+	//std::default_random_engine re((unsigned int)time(0));
+	//std::uniform_int_distribution<int> randomBool{ 0, 1 };
 
 	std::string HEX(uint32_t value)
 	{
@@ -80,7 +81,8 @@ namespace
 #define PPU_MASK_EMPHASIZE_GREEN   6
 #define PPU_MASK_EMPHASIZE_BLUE    7
 
-#define PPU_CTRL_NAMETABLE_ADDRESS						0
+#define PPU_CTRL_NAMETABLE_ADDRESS_X					0
+#define PPU_CTRL_NAMETABLE_ADDRESS_Y					1
 #define PPU_CTRL_VRAM_ADDRESS_INCREMENT_DIRECTION		2
 #define PPU_CTRL_SPRITE_PATTERN_TABLE_ADDRESS_8x8		3
 #define PPU_CTRL_BG_PATTERN_TABLE_ADDRESS				4
@@ -99,71 +101,7 @@ namespace
 										var++;									 \
 									else                                             \
 										var = 0;
-
-	/*124, 124, 124
-	0, 0, 252
-	0, 0, 188
-	68, 40, 188
-	148, 0, 132
-	168, 0, 32
-	168, 16, 0
-	136, 20, 0
-	80, 48, 0
-	0, 120, 0
-	0, 104, 0
-	0, 88, 0
-	0, 64, 88
-	0, 0, 0
-	0, 0, 0
-	0, 0, 0
-	188, 188, 188
-	0, 120, 248
-	0, 88, 248
-	104, 68, 252
-	216, 0, 204
-	228, 0, 88
-	248, 56, 0
-	228, 92, 16
-	172, 124, 0
-	0, 184, 0
-	0, 168, 0
-	0, 168, 68
-	0, 136, 136
-	0, 0, 0
-	0, 0, 0
-	0, 0, 0
-	248, 248, 248
-	60, 188, 252
-	104, 136, 252
-	152, 120, 248
-	248, 120, 248
-	248, 88, 152
-	248, 120, 88
-	252, 160, 68
-	248, 184, 0
-	184, 248, 24
-	88, 216, 84
-	88, 248, 152
-	0, 232, 216
-	120, 120, 120
-	0, 0, 0
-	0, 0, 0
-	252, 252, 252
-	164, 228, 252
-	184, 184, 248
-	216, 184, 248
-	248, 184, 248
-	248, 164, 192
-	240, 208, 176
-	252, 224, 168
-	248, 216, 120
-	216, 248, 120
-	184, 248, 184
-	184, 248, 216
-	0, 252, 252
-	248, 216, 248
-	0, 0, 0
-	0, 0, 0*/
+	
 	uint8_t colorToRGB_palette[64 * 3]
 	{
 		124,124,124,
@@ -239,6 +177,23 @@ namespace
 						 colorToRGB_palette[color * 3 + 2]);
 	}
 
+	sf::Color RotateHue(const sf::Color& in, const float angle)
+	{
+		sf::Color out;
+		const float cosA = cos(angle * 3.14159265f / 180);
+		const float sinA = sin(angle * 3.14159265f / 180);
+
+		float matrix[3][3] = { {cosA + (1.f - cosA) / 3.f, 1.f / 3.f * (1.f - cosA) - sqrtf(1.f / 3.f) * sinA, 1.f / 3.f * (1.f - cosA) + sqrtf(1.f / 3.f) * sinA},
+			{1.f / 3.f * (1.f - cosA) + sqrtf(1.f / 3.f) * sinA, cosA + 1.f / 3.f * (1.f - cosA), 1.f / 3.f * (1.f - cosA) - sqrtf(1.f / 3.f) * sinA},
+			{1.f / 3.f * (1.f - cosA) - sqrtf(1.f / 3.f) * sinA, 1.f / 3.f * (1.f - cosA) + sqrtf(1.f / 3.f) * sinA, cosA + 1.f / 3.f * (1.f - cosA)} };
+
+		out.r = (uint8_t)std::clamp(in.r * matrix[0][0] + in.g * matrix[0][1] + in.b * matrix[0][2], 0.f, 255.f);
+		out.g = (uint8_t)std::clamp(in.r * matrix[1][0] + in.g * matrix[1][1] + in.b * matrix[1][2], 0.f, 255.f);
+		out.b = (uint8_t)std::clamp(in.r * matrix[2][0] + in.g * matrix[2][1] + in.b * matrix[2][2], 0.f, 255.f);
+
+		return out;
+	}
+
 	enum PaletteType
 	{
 		Background = 0,
@@ -252,6 +207,12 @@ namespace
 		Other
 	};
 
+	enum Mirroring
+	{
+		Vertical = 0,
+		Horizontal = 1
+	};
+
 	struct iNESHeader // 16B
 	{
 		uint8_t NES[4];		// $4E $45 $53 $1A
@@ -263,5 +224,17 @@ namespace
 		uint8_t flags9;		// TV system (rarely used extension)
 		uint8_t flags10;	// TV system, PRG-RAM presence (unofficial, rarely used extension)
 		uint8_t padding[5];	// Unused padding (should be filled with zero, but some rippers put their name across bytes 7-15)
+	};
+
+	sf::Keyboard::Key keyMap[8] =
+	{
+		sf::Keyboard::Right,	// RIGHT
+		sf::Keyboard::Left,		// LEFT
+		sf::Keyboard::Down,		// DOWN
+		sf::Keyboard::Up,		// UP
+		sf::Keyboard::LShift,	// START
+		sf::Keyboard::LControl,	// SELECT
+		sf::Keyboard::X,		// B
+		sf::Keyboard::C			// A
 	};
 }

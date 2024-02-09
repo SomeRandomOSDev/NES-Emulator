@@ -9,7 +9,7 @@
 
 #include "util.hpp"
 
-class NESEmulator
+class NESEmulator // NTSC NES with RP2A03/2C02G
 {
 public:
 	NESEmulator()
@@ -25,6 +25,8 @@ public:
 
 	void powerUp()
 	{
+		stopCPU = true;
+
 		A = X = Y = 0;
 		SR = 0x34;
 		S = 0xfd;
@@ -49,11 +51,15 @@ public:
 		v = 0x0000;
 		ppuReadBuffer = 0x00;
 
+		controllerLatch1 = false;
+
 		LOG_ADD_LINE("POWER_UP");
 	}
 
 	void reset()
 	{
+		stopCPU = true;
+
 		S -= 3;
 		SR |= 0x04;
 		CPU_cycles = 9;
@@ -68,6 +74,8 @@ public:
 		PPU_STATUS &= 0b10000000;
 		w = false;
 		ppuReadBuffer = 0x00;
+
+		controllerLatch1 = false;
 
 		LOG_ADD_LINE("RESET");
 	}
@@ -104,6 +112,8 @@ public:
 
 			bool trainer = (header.flags6 >> 2) & 1;
 
+			mirroring = Mirroring(header.flags6 & 1);
+
 			uint16_t PRGROM_location = 16 + (512 * trainer), PRGROM_size = 16384 * header.PRGROMSize;
 			uint16_t CHRROM_location = PRGROM_location + PRGROM_size, CHRROM_size = 8192 * header.CHRROMSize;
 
@@ -111,11 +121,45 @@ public:
 			memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
 
 			LOG_ADD_LINE("Loaded successfully (mapper 0).");
+			stopCPU = false;
 		}
 		else
 			LOG_ADD_LINE("Unknown mapper (mapper " + std::to_string(mapperNb) + ").");
 
 		PC = CPU_readMemory2B(RESET_VECTOR);
+	}
+
+	uint16_t PPU_HANDLE_ADDRESS(uint16_t address)
+	{
+		address %= 0x4000;
+
+		// Nametable mirroring
+		if (mirroring == Horizontal)
+		{
+			if (address >= 0x2800 && address < 0x3000)
+				address -= 0x800;
+		}
+		else if (mirroring == Vertical)
+		{
+			if ((address >= 0x2400 && address < 0x2800) || (address >= 0x2c00 && address < 0x3000))
+				address -= 0x400;
+		}
+
+		if (address >= 0x3000 && address <= 0x3eff) // mirrors of 0x2000 - 0x2eff
+			address -= 0x1000;
+		while (address >= 0x3f20) // mirrors of 0x3f00 - 0x3f1f
+			address -= 0x0020;
+
+		if (address == 0x3f10)
+			address = 0x3f00;
+		if (address == 0x3f14)
+			address = 0x3f04;
+		if (address == 0x3f18)
+			address = 0x3f08;
+		if (address == 0x3f1c)
+			address = 0x3f0c;
+
+		return address;
 	}
 
 	void CPU_writeMemory1B(uint16_t address, uint8_t value)
@@ -128,9 +172,7 @@ public:
 
 		else if (address < 0x4000) // PPU registers
 		{
-			uint8_t regNb = address % 8;
-
-			switch (regNb)
+			switch (address % 8)
 			{
 			case 0x0000: // PPU CTRL
 				PPU_CTRL = value;
@@ -170,7 +212,17 @@ public:
 		}
 
 		else if (address < 0x4018) // APU and IO registers
-			;
+		{
+			switch (address)
+			{
+			case 0x4016:
+				controllerLatch1 = (value & 1);
+
+				break;
+			}
+
+			return;
+		}
 
 		else if (address < 0x4020) // APU and I/O functionality that is normally disabled
 			;
@@ -233,13 +285,20 @@ public:
 		}
 
 		if (address < 0x4018) // APU and IO registers
-			return 0;
+		{
+			switch (address)
+			{
+			case 0x4016:
+				uint8_t value = (controller1ShiftRegister & 1);
+				controller1ShiftRegister >>= 1;
+				return value;
+			}
+		}
 
 		if (address < 0x4020) // APU and I/O functionality that is normally disabled
 			return 0;
 
 		// Cartridge space
-
 		if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
 		{
 			if (address < 0x8000) // Family BASIC only
@@ -258,42 +317,14 @@ public:
 
 	void PPU_writeMemory1B(uint16_t address, uint8_t value)
 	{
-		address %= 0x4000;
-
-		if (address >= 0x3000 && address <= 0x3eff) // mirrors of 0x2000 - 0x2eff
-			address -= 0x1000;
-		while (address >= 0x3f20) // mirrors of 0x3f00 - 0x3f1f
-			address -= 0x0020;
-
-		if (address == 0x3f10)
-			address = 0x3f00;
-		if (address == 0x3f14)
-			address = 0x3f04;
-		if (address == 0x3f18)
-			address = 0x3f08;
-		if (address == 0x3f1c)
-			address = 0x3f0c;
+		address = PPU_HANDLE_ADDRESS(address);
 
 		PPU_memory[address] = value;
 	}
 
 	uint8_t PPU_readMemory1B(uint16_t address)
 	{
-		address %= 0x4000;
-
-		if (address >= 0x3000 && address <= 0x3eff) // mirrors of 0x2000 - 0x2eff
-			address -= 0x1000;
-		while (address >= 0x3f20) // mirrors of 0x3f00 - 0x3f1f
-			address -= 0x0020;
-
-		if (address == 0x3f10)
-			address = 0x3f00;
-		if (address == 0x3f14)
-			address = 0x3f04;
-		if (address == 0x3f18)
-			address = 0x3f08;
-		if (address == 0x3f1c)
-			address = 0x3f0c;
+		address = PPU_HANDLE_ADDRESS(address);
 
 		return PPU_memory[address];
 	}
@@ -392,6 +423,19 @@ public:
 		return lo + (CPU_readMemory1B((d + 1) % 256) * 256) + Y;
 	}
 
+	uint8_t GetColorCodeFromPalette(uint8_t paletteNumber, PaletteType paletteType, uint8_t index)
+	{
+		//  43210
+		//	|||||
+		//	|||++ - Pixel value from tile data
+		//	|++-- - Palette number from attribute table or OAM
+		//	+---- - Background / Sprite select
+
+		uint16_t address = 0x3f00 | ((paletteType << 4) | ((paletteNumber & 0b11) << 2) | (index & 0b11));
+
+		return PPU_readMemory1B(address);
+	}
+
 	sf::Color GetColorFromPalette(uint8_t paletteNumber, PaletteType paletteType, uint8_t index)
 	{
 		//  43210
@@ -442,8 +486,20 @@ public:
 		return img;
 	}
 
-	void cycle(bool printLog);
-	void PPU_cycle();
+	uint8_t NametableGetTile(uint8_t tileX, uint8_t tileY, uint16_t nametableBase)
+	{
+		return PPU_readMemory1B(nametableBase + tileY * 32 + tileX);
+	}
+
+	sf::Color AttenuateColor(sf::Color color)
+	{
+		return sf::Color(uint8_t(0.816328 * color.r),
+						 uint8_t(0.816328 * color.g),
+						 uint8_t(0.816328 * color.b));
+	}
+
+	void cycle(bool printLog, bool emulateArtifacts);
+	void PPU_cycle(bool emulateArtifacts);
 	void INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_FLAG);
 	void NMI();
 	std::string CPU_cycle();
@@ -459,6 +515,7 @@ public:
 	uint8_t cycleCounter;
 	int16_t PPU_scanline;
 	Mapper mapper;
+	Mirroring mirroring;
 
 	sf::Image screen, screen2;
 	bool frameFinished;
@@ -469,4 +526,9 @@ public:
 	bool w; // write latch
 	uint16_t v; // VRAM address
 	uint8_t ppuReadBuffer;
+
+	bool controllerLatch1;
+	uint8_t controller1ShiftRegister;
+
+	bool stopCPU;
 };
