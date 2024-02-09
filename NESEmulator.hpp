@@ -405,6 +405,43 @@ public:
 		return NESColorToRGB(PPU_readMemory1B(address));
 	}
 
+	uint16_t GetRowAddressFromTile(bool bitPlane, bool patternTableHalf, uint8_t tileNumber, uint8_t row)
+	{
+		return (patternTableHalf << 0xc) | (tileNumber << 4) | (bitPlane << 3) | (row & 0b111);
+	}
+
+	uint8_t GetRowFromTile(bool bitPlane, bool patternTableHalf, uint8_t tileNumber, uint8_t row)
+	{
+		return PPU_readMemory1B(GetRowAddressFromTile(bitPlane, patternTableHalf, tileNumber, row));
+	}
+
+	sf::Image GetPatternTable(bool patternTableHalf, uint8_t palette)
+	{
+		sf::Image img;
+		img.create(128, 128);
+		for (unsigned int i = 0; i < 16; i++)
+		{
+			for (unsigned int j = 0; j < 16; j++)
+			{
+				uint8_t tileIndex = i * 16 + j;
+
+				for (unsigned int k = 0; k < 8; k++)
+				{
+					uint8_t lo = GetRowFromTile(0, patternTableHalf, tileIndex, k);
+					uint8_t hi = GetRowFromTile(1, patternTableHalf, tileIndex, k);
+
+					for (unsigned int l = 0; l < 8; l++)
+					{
+						uint8_t index = REG_GET_FLAG(lo, 7 - l) | (REG_GET_FLAG(hi, 7 - l) << 1);
+
+						img.setPixel(j * 8 + l, i * 8 + k, GetColorFromPalette(palette, Background, index));
+					}
+				}
+			}
+		}
+		return img;
+	}
+
 	void cycle(bool printLog);
 	void PPU_cycle();
 	void INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_FLAG);

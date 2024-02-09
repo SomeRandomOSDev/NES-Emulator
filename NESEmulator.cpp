@@ -53,10 +53,14 @@ void NESEmulator::PPU_cycle()
 		screen2.setPixel(PPU_cycles, PPU_scanline, color);
 	}
 
-	if (PPU_scanline == 261 && PPU_cycles == 1)
+	if (PPU_scanline == 241 && PPU_cycles == 1)
 	{
 		REG_SET_FLAG_1(PPU_STATUS, PPU_STATUS_VBLANK);
 		NMI();
+	}
+	if (PPU_scanline == -1 && PPU_cycles == 1)
+	{
+		REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_VBLANK);
 	}
 
 	PPU_cycles++;
@@ -64,7 +68,7 @@ void NESEmulator::PPU_cycle()
 	{
 		PPU_cycles = 0;
 		PPU_scanline++;
-		if (PPU_scanline >= 262)
+		if (PPU_scanline >= 261)
 		{
 			PPU_scanline = -1;
 			screen = screen2;

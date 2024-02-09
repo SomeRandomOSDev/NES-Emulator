@@ -34,9 +34,11 @@ int WinMain()
 
 	int32_t memoryScroll = 0;
 
-	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown;
+	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown = 0, pDown = 0;
 
 	bool running = false;
+
+	uint8_t displayPalette = 0;
 
 	sf::RenderWindow window, window_cpuDebug, window_ppuDebug;
 	window_cpuDebug.create(sf::VideoMode(800, 550), "NES Emulator | CPU Debug");
@@ -79,25 +81,11 @@ int WinMain()
 
 		memoryScroll = std::max(0, std::min((int)memoryScroll, 0x2000 - 24));
 
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
-			sDown++;
-		else
-			sDown = 0;
-
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::F))
-			fDown++;
-		else
-			fDown = 0;
-
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
-			spaceDown++;
-		else
-			spaceDown = 0;
-
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::I))
-			iDown++;
-		else
-			iDown = 0;
+		HANDLE_KEY(sDown, S)
+		HANDLE_KEY(fDown, F)
+		HANDLE_KEY(spaceDown, Space)
+		HANDLE_KEY(iDown, I)
+		HANDLE_KEY(pDown, P)
 
 		if (spaceDown == 1)
 			running ^= true;
@@ -138,6 +126,11 @@ int WinMain()
 			}
 		}
 
+		if (pDown == 1)
+		{
+			displayPalette++;
+		}
+
 		while (emu.logLines > 32)
 		{
 			emu.log.erase(0, emu.log.find("\n") + 1);
@@ -145,7 +138,8 @@ int WinMain()
 		}
 
 		sf::Vector2f ws = (sf::Vector2f)window.getSize(),
-					 ws_cpuDebug = (sf::Vector2f)window_cpuDebug.getSize();
+					 ws_cpuDebug = (sf::Vector2f)window_cpuDebug.getSize(),
+					 ws_ppuDebug = (sf::Vector2f)window_ppuDebug.getSize();
 
 		window.clear(sf::Color(128, 128, 128));
 		window_cpuDebug.clear(sf::Color(128, 128, 128));
@@ -177,7 +171,7 @@ int WinMain()
 		instructions.setString(emu.log);
 		window_cpuDebug.draw(instructions);
 
-////////////////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////////////////
 
 		float screenSize = std::min(ws.x, ws.y);
 
@@ -188,6 +182,24 @@ int WinMain()
 		screenTex.loadFromImage(emu.screen);
 		screen.setTexture(&screenTex);
 		window.draw(screen);
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+		float patternTableSize = std::min(ws_ppuDebug.x, ws_ppuDebug.y);
+
+		sf::RectangleShape patternTable(sf::Vector2f(patternTableSize, patternTableSize));
+		//patternTable.setOrigin(patternTableSize / 2.f, patternTableSize / 2.f);
+		//patternTable.setPosition(sf::Vector2f(ws_ppuDebug.x / 2.f, ws_ppuDebug.y / 2.f));
+		sf::Texture patternTableTex;
+		patternTableTex.loadFromImage(emu.GetPatternTable(0, displayPalette));
+		patternTable.setTexture(&patternTableTex);
+		window_ppuDebug.draw(patternTable);
+
+		patternTable.setPosition(sf::Vector2f(patternTableSize, 0));
+		patternTableTex.loadFromImage(emu.GetPatternTable(1, displayPalette));
+		window_ppuDebug.draw(patternTable);
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 		window.display();
 		window_cpuDebug.display();
