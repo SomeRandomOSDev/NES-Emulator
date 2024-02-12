@@ -24,17 +24,22 @@ namespace
 		return (value < 0x10 ? "0" + str : str);
 	}
 
+	std::string HEX_2B(uint16_t value)
+	{
+		return HEX_1B(value >> 8) + HEX_1B(value & 0xff);
+	}
+
 #define B  1
 #define KB (B * 1024)
 	//#define MB (KB * 1024)
 
 #define LOG_ADD_LINE(str)		{ log += (std::string) str + "\n"; logLines++; }
 
-#define REG_GET_FLAG(reg, bit)           ((reg & (1 << (bit))) >> (bit))
-#define REG_SET_FLAG_1(reg, bit)           reg |= (1 << (bit))
+#define REG_GET_FLAG(reg, bit)           ((reg >> (bit)) & 1)
+#define REG_SET_FLAG_1(reg, bit)         reg |= (1 << (bit))
 #define REG_SET_FLAG_0(reg, bit)         reg &= ~((uint8_t)(1 << (bit)))
 #define REG_TOGGLE_FLAG(reg, bit)        reg ^= (1 << (bit))
-#define REG_SET_FLAG(reg, bit, value)    SET_FLAG_0(bit); reg |= (value << (bit))
+#define REG_SET_FLAG(reg, bit, value)    REG_SET_FLAG_0(reg, bit); reg |= (((value) & 1) << (bit))
 
 #define GET_FLAG(bit)           REG_GET_FLAG(SR, bit)
 #define SET_FLAG_1(bit)         REG_SET_FLAG_1(SR, bit)
@@ -90,12 +95,12 @@ namespace
 #define PPU_CTRL_MASTER_SLAVE						    6
 #define PPU_CTRL_NMI									7
 
-#define updateRegistersText() registers.setString("A:  #$" + HEX(emu.A) + "\n" + \
-												  "X:  #$" + HEX(emu.X) + "\n" + \
-												  "Y:  #$" + HEX(emu.Y) + "\n" + \
-												  "SR: #$" + HEX(emu.SR) + "\n" + \
-												  "S:  #$" + HEX(emu.S) + "\n" + \
-												  "PC: #$" + HEX(emu.PC));
+#define updateRegistersText() registers.setString("A:  #$" + HEX_1B(emu.A) + "\n" + \
+												  "X:  #$" + HEX_1B(emu.X) + "\n" + \
+												  "Y:  #$" + HEX_1B(emu.Y) + "\n" + \
+												  "SR: #$" + HEX_1B(emu.SR) + "\n" + \
+												  "S:  #$" + HEX_1B(emu.S) + "\n" + \
+												  "PC: #$" + HEX_2B(emu.PC));
 
 #define HANDLE_KEY(var, key) 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::key)) \
 										var++;									 \
@@ -105,7 +110,7 @@ namespace
 	uint8_t colorToRGB_palette[64 * 3]
 	{
 		124,124,124,
-		0,0,252,
+		0,0,252,	
 		0,0,188,
 		68,40,188,
 		148,0,132,
@@ -204,6 +209,7 @@ namespace
 	{
 		Mapper0_NROM_128,
 		Mapper0_NROM_256,
+		Mapper1_MMC1,
 		Other
 	};
 

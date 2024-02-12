@@ -34,7 +34,7 @@ int WinMain()
 
 	int32_t memoryScroll = 0;
 
-	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown = 0, pDown = 0;
+	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown = 0, pDown = 0, rDown = 0;
 
 	bool running = false;
 
@@ -46,6 +46,8 @@ int WinMain()
 	window.create(sf::VideoMode(800, 550), "NES Emulator");
 	window.setFramerateLimit(60);
 	window.setVerticalSyncEnabled(false);
+
+	bool emulateArtifacts = false;
 
 	while (window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen())
 	{
@@ -86,16 +88,15 @@ int WinMain()
 		HANDLE_KEY(spaceDown, Space)
 		HANDLE_KEY(iDown, I)
 		HANDLE_KEY(pDown, P)
+		HANDLE_KEY(rDown, R)
 
 		if (spaceDown == 1)
 			running ^= true;
 
 		if (fDown == 1 || running)
 		{
-			//for(uint16_t i = 0; i < 1.789773 * 1000000 * 3; i++)
-			//for (uint16_t i = 0; i < 21.477272 * 1000000 / 4; i++)
 			while(!emu.frameFinished)
-				emu.cycle(true, true);
+				emu.cycle(true, emulateArtifacts);
 
 			emu.frameFinished = false;
 
@@ -104,7 +105,7 @@ int WinMain()
 
 		if (sDown == 1)
 		{
-			emu.cycle(true, true);
+			emu.cycle(true, emulateArtifacts);
 
 			emu.frameFinished = false;
 
@@ -113,12 +114,13 @@ int WinMain()
 
 		if (iDown == 1)
 		{
+			if(!emu.stopCPU)
 			for (unsigned int i = 0; i < 3; i++)
 			{
 
 				while (emu.CPU_cycles > 0)
-					emu.cycle(true, true);
-				emu.cycle(true, true);
+					emu.cycle(true, emulateArtifacts);
+				emu.cycle(true, emulateArtifacts);
 
 				emu.frameFinished = false;
 
@@ -129,6 +131,12 @@ int WinMain()
 		if (pDown == 1)
 		{
 			displayPalette++;
+		}
+
+		if (rDown == 1)
+		{
+			emu.reset();
+			emu.loadFromiNES(__argv[0 + 1]);
 		}
 
 		while (emu.logLines > 32)

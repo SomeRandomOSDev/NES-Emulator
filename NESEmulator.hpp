@@ -36,11 +36,13 @@ public:
 			CPU_writeMemory1B(i, 0);
 		for (uint16_t i = 0x4010; i < 0x4013; i++)
 			CPU_writeMemory1B(i, 0);
+
 		CPU_cycles = 0;
 		cycleCounter = 0;
 
 		PPU_cycles = 0;
 		PPU_scanline = -1;
+		memset(&PPU_memory[0], 0, 0x4000);
 
 		frameFinished = false;
 
@@ -80,18 +82,22 @@ public:
 		LOG_ADD_LINE("RESET");
 	}
 
-	void loadFromBuffer(uint16_t startAddress, uint8_t* opcodes, uint16_t size)
-	{
-		for (uint16_t i = 0; i < size; i++)
-			CPU_writeMemory1B(startAddress + i, opcodes[i]);
+	//void loadFromBuffer(uint16_t startAddress, uint8_t* opcodes, uint16_t size)
+	//{
+	//	LOG_ADD_LINE("Loading from buffer...");
 
-		PC = startAddress;
-		CPU_writeMemory2B(RESET_VECTOR, startAddress);
-	}
+	//	memcpy(&CPU_memory[startAddress], opcodes, size);
+
+	//	PC = startAddress;
+	//	CPU_memory[RESET_VECTOR] = startAddress & 0xff;
+	//	CPU_memory[RESET_VECTOR + 1] = startAddress >> 8;
+
+	//	LOG_ADD_LINE("Loaded successfully at address 0x" + HEX(startAddress));
+	//}
 
 	void loadFromiNES(std::string fileName)
 	{
-		LOG_ADD_LINE("Loading " + fileName + "...");
+		LOG_ADD_LINE("Loading \"" + fileName + "\"...");
 
 		std::ifstream f(fileName, std::ios::binary);
 		if (!f) return;
@@ -104,27 +110,46 @@ public:
 		uint8_t mapper_lo = (header.flags6 >> 4), mapper_hi = (header.flags7 >> 4);
 		uint8_t mapperNb = (mapper_lo | (mapper_hi << 4));
 
-		if (mapperNb == 0)
+		bool trainer = (header.flags6 >> 2) & 1;
+
+		PRGRAM = (header.flags6 >> 1) & 1;
+
+		uint16_t PRGROM_location = 16 + (512 * trainer), PRGROM_size = 16384 * header.PRGROMSize;
+		uint16_t CHRROM_location = PRGROM_location + PRGROM_size, CHRROM_size = 8192 * header.CHRROMSize;
+
+		stopCPU = false;
+		mapper = Other;
+		switch (mapperNb)
 		{
-			mapper = (mapperNb == 0 ? (header.PRGROMSize == 1 ? Mapper0_NROM_128 : Mapper0_NROM_256) : Other);
-
-			//std::cout << HEX(mapper) << std::endl;
-
-			bool trainer = (header.flags6 >> 2) & 1;
+		case 0:
+			mapper = header.PRGROMSize == 1 ? Mapper0_NROM_128 : Mapper0_NROM_256;
 
 			mirroring = Mirroring(header.flags6 & 1);
-
-			uint16_t PRGROM_location = 16 + (512 * trainer), PRGROM_size = 16384 * header.PRGROMSize;
-			uint16_t CHRROM_location = PRGROM_location + PRGROM_size, CHRROM_size = 8192 * header.CHRROMSize;
 
 			memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
 			memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
 
 			LOG_ADD_LINE("Loaded successfully (mapper 0).");
-			stopCPU = false;
-		}
-		else
+			
+			break;
+
+		case 1:
+			mapper = Mapper1_MMC1;
+
+			mirroring = Mirroring(header.flags6 & 1);
+
+			memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
+			memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
+
+			LOG_ADD_LINE("Loaded successfully (mapper 1).");
+
+			break;
+
+		default:
 			LOG_ADD_LINE("Unknown mapper (mapper " + std::to_string(mapperNb) + ").");
+			stopCPU = true;
+			break;
+		}
 
 		PC = CPU_readMemory2B(RESET_VECTOR);
 	}
@@ -187,13 +212,14 @@ public:
 			case 0x0006: // PPU ADDRESS
 				if (w == 0)
 				{
-					v &= 0x00ff;
-					v |= (uint16_t)value << 8;
+					t &= 0x00ff;
+					t |= (uint16_t)value << 8;
 				}
 				else
 				{
-					v &= 0xff00;
-					v |= value;
+					t &= 0xff00;
+					t |= value;
+					v = t;
 				}
 
 				w ^= true;
@@ -240,6 +266,14 @@ public:
 			//	; //CPU_memory[address - 16384] = value;
 			//if (mapper == Mapper0_NROM_256) // Last 16 KB of ROM (NROM-256) or mirror of $8000-$BFFF (NROM-128).
 			//	; //CPU_memory[address] = value;
+		}
+		else if (mapper == Mapper1_MMC1)
+		{
+			if (address < 0x6000)
+				return;
+			if(address < 0x8000)
+				CPU_memory[address] = value; // 8KB PRG RAM
+			// ROM
 		}
 		else
 		{
@@ -311,6 +345,16 @@ public:
 			if (mapper == Mapper0_NROM_256) // Last 16 KB of ROM (NROM-256) or mirror of $8000-$BFFF (NROM-128).
 				return CPU_memory[address];
 		}
+		else if (mapper == Mapper1_MMC1)
+		{
+			if (address < 0x6000)
+				return 0;
+			if (address < 0x8000)
+				return CPU_memory[address]; // 8KB PRG RAM
+			if (address < 0xc000)		
+				return CPU_memory[address]; // 16KB ROM
+			return CPU_memory[address]; // 16KB ROM
+		}
 
 		return 0;
 	}
@@ -374,7 +418,7 @@ public:
 		uint8_t lo = pull1B();
 		uint8_t hi = pull1B();
 
-		return ((uint16_t)hi << 8) | lo;
+		return (((uint16_t)hi << 8) | lo);
 	}
 
 	uint8_t readIndexedIndirectX(uint8_t d)
@@ -491,11 +535,93 @@ public:
 		return PPU_readMemory1B(nametableBase + tileY * 32 + tileX);
 	}
 
-	sf::Color AttenuateColor(sf::Color color)
+	sf::Color AttenuateColor(sf::Color color, bool Red, bool Green, bool Blue)
 	{
-		return sf::Color(uint8_t(0.816328 * color.r),
-						 uint8_t(0.816328 * color.g),
-						 uint8_t(0.816328 * color.b));
+		if (Red)
+			color.r = uint8_t(0.816328 * color.r);
+		if (Green)
+			color.g = uint8_t(0.816328 * color.g);
+		if (Blue)
+			color.b = uint8_t(0.816328 * color.b);
+		return color;
+	}
+
+	void RenderBGPixel(bool emulateArtifacts)
+	{
+		uint8_t tileX = PPU_cycles / 8, tileY = PPU_scanline / 8;
+		uint8_t attributeTileX = PPU_cycles / 32, attributeTileY = PPU_scanline / 32;
+		uint8_t smallAttributeTileX = PPU_cycles / 16, smallAttributeTileY = PPU_scanline / 16;
+
+		uint8_t nametableX = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_X),
+				nametableY = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_Y);
+
+		uint16_t nametableBase = 0x2000 + 0x400 * (nametableY * 2 + nametableX);
+
+		uint16_t attributeTableBase = nametableBase + 0x3c0;
+		uint8_t attributeByte = PPU_readMemory1B(attributeTableBase + attributeTileY * 8 + attributeTileX);
+
+		uint8_t palette_bottomRight = (attributeByte >> 6),
+				palette_bottomLeft = (attributeByte >> 4) & 0b11,
+				palette_topRight = (attributeByte >> 2) & 0b11,
+				palette_topLeft = attributeByte & 0b11;
+
+		uint8_t palette = 0;
+		if (smallAttributeTileY & 1)
+		{
+			if (smallAttributeTileX & 1)
+				palette = palette_bottomRight;
+			else
+				palette = palette_bottomLeft;
+		}
+		else
+		{
+			if (smallAttributeTileX & 1)
+				palette = palette_topRight;
+			else
+				palette = palette_topLeft;
+		}
+
+		uint8_t bgTile = NametableGetTile(tileX, tileY, nametableBase);
+		uint8_t tileOffsetX = PPU_cycles - tileX * 8, tileOffsetY = PPU_scanline - tileY * 8;
+		bool patternTable = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_BG_PATTERN_TABLE_ADDRESS);
+
+		uint8_t row_lo = GetRowFromTile(0, patternTable, bgTile, tileOffsetY),
+				row_hi = GetRowFromTile(1, patternTable, bgTile, tileOffsetY);
+
+		uint8_t paletteIndex_lo = REG_GET_FLAG(row_lo, 7 - tileOffsetX),
+				paletteIndex_hi = REG_GET_FLAG(row_hi, 7 - tileOffsetX);
+		uint8_t paletteIndex = (paletteIndex_hi << 1) | paletteIndex_lo;
+
+		bool grayscale = REG_GET_FLAG(PPU_MASK, PPU_MASK_GRAYSCALE);
+		uint8_t colorCode = GetColorCodeFromPalette(palette, Background, paletteIndex);
+		uint8_t chroma = (colorCode & 0x0f);
+		uint8_t luma = (colorCode >> 4);
+		if (grayscale && chroma < 0x0d)
+			colorCode &= 0x30; // colorCode = (luma << 4);
+		colorCode %= 64;
+		sf::Color color = NESColorToRGB(colorCode);
+
+		bool attenuateRed, attenuateGreen, attenuateBlue;
+		attenuateRed = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN) |
+					   REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
+		attenuateGreen = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
+						 REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
+		attenuateBlue = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
+						REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN);
+		if ((colorCode & 0x0f) < 0x0d)
+			color = AttenuateColor(color, attenuateRed, attenuateGreen, attenuateBlue);
+
+		if (emulateArtifacts)
+			color = RotateHue(color, 5.f * (colorCode >> 4)); // Differential Phase Distortion
+
+
+		//color = color + NESColorToRGB(palette);
+
+		//color.r = uint8_t(color.r / 2);
+		//color.g = uint8_t(color.g / 2);
+		//color.b = uint8_t(color.b / 2);
+
+		screen2.setPixel(PPU_cycles, PPU_scanline, color);
 	}
 
 	void cycle(bool printLog, bool emulateArtifacts);
@@ -516,6 +642,7 @@ public:
 	int16_t PPU_scanline;
 	Mapper mapper;
 	Mirroring mirroring;
+	bool PRGRAM;
 
 	sf::Image screen, screen2;
 	bool frameFinished;
@@ -525,6 +652,7 @@ public:
 
 	bool w; // write latch
 	uint16_t v; // VRAM address
+	uint16_t t; // temp VRAM address
 	uint8_t ppuReadBuffer;
 
 	bool controllerLatch1;
