@@ -105,11 +105,9 @@ std::string NESEmulator::CPU_cycle()
 
 		str += "$" + HEX_2B(PC) + " : $" + HEX_1B(opcode) + " : ";
 
-		CPU_cycles = 1;
-
 		switch (opcode)
 		{
-		case 0x00:
+		case 0x00: // BRK imm8
 			str += "BRK #$" + HEX(arg8);
 
 			INTERRUPT(PC + 2, BRK_VECTOR, true);
@@ -968,6 +966,8 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x68: // PLA
+			str += "PLA";
+
 			A = pull1B();
 
 			SET_FLAG(FLAG_N, (A >> 7));

@@ -1,13 +1,14 @@
 #pragma once
 
 #include <sstream>
-//#include <random>
+#include <random>
 #include <algorithm>
 
 namespace
 {
-	//std::default_random_engine re((unsigned int)time(0));
+	std::default_random_engine re((unsigned int)time(0));
 	//std::uniform_int_distribution<int> randomBool{ 0, 1 };
+	std::uniform_int_distribution<unsigned int> randomColor{ 0, 63 };
 
 	std::string HEX(uint32_t value)
 	{
@@ -60,7 +61,6 @@ namespace
 #define FLAG_ZERO				FLAG_Z
 #define FLAG_INTERRUPT_DISABLE	FLAG_I
 #define FLAG_DECIMAL			FLAG_D
-
 #define FLAG_OVERFLOW			FLAG_V
 #define FLAG_NEGATIVE			FLAG_N
 

@@ -32,7 +32,7 @@ int WinMain()
 	memory.setFont(font);
 	memory.setString("00");
 
-	int32_t memoryScroll = 0;
+	int32_t memoryScroll = 0, ppuMemoryScroll = 0;
 
 	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown = 0, pDown = 0, rDown = 0;
 
@@ -40,16 +40,18 @@ int WinMain()
 
 	uint8_t displayPalette = 0;
 
-	sf::RenderWindow window, window_cpuDebug, window_ppuDebug;
+	sf::RenderWindow window, window_cpuDebug, window_ppuDebug_pattern, window_ppuDebug;
 	window_cpuDebug.create(sf::VideoMode(800, 550), "NES Emulator | CPU Debug");
 	window_ppuDebug.create(sf::VideoMode(800, 550), "NES Emulator | PPU Debug");
+	window_ppuDebug_pattern.create(sf::VideoMode(800, 550), "NES Emulator | PPU Debug | Pattern Tables");
 	window.create(sf::VideoMode(800, 550), "NES Emulator");
 	window.setFramerateLimit(60);
 	window.setVerticalSyncEnabled(false);
 
 	bool emulateArtifacts = false;
 
-	while (window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen())
+	while (
+window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && window_ppuDebug_pattern.isOpen())
 	{
 		sf::Event event;
 		while (window.pollEvent(event))
@@ -73,22 +75,37 @@ int WinMain()
 					memoryScroll -= event.mouseWheel.delta;
 			}
 		}
+		while (window_ppuDebug_pattern.pollEvent(event))
+		{
+			if (event.type == sf::Event::Closed)
+				window_ppuDebug_pattern.close();
+			if (event.type == sf::Event::Resized)
+				window_ppuDebug_pattern.setView(sf::View(sf::FloatRect(0, 0, (float)event.size.width, (float)event.size.height)));
+		}
 		while (window_ppuDebug.pollEvent(event))
 		{
 			if (event.type == sf::Event::Closed)
 				window_ppuDebug.close();
 			if (event.type == sf::Event::Resized)
 				window_ppuDebug.setView(sf::View(sf::FloatRect(0, 0, (float)event.size.width, (float)event.size.height)));
+			if (event.type == event.MouseWheelMoved)
+			{
+				if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl))
+					ppuMemoryScroll -= 256 / 8 * event.mouseWheel.delta;
+				else
+					ppuMemoryScroll -= event.mouseWheel.delta;
+			}
 		}
 
-		memoryScroll = std::max(0, std::min((int)memoryScroll, 0x2000 - 24));
+		memoryScroll =    std::max(0, std::min((int)memoryScroll,    0x10000 / 8 - 24));
+		ppuMemoryScroll = std::max(0, std::min((int)ppuMemoryScroll, 0x4000 / 8 - 24));
 
-		HANDLE_KEY(sDown, S)
-		HANDLE_KEY(fDown, F)
-		HANDLE_KEY(spaceDown, Space)
-		HANDLE_KEY(iDown, I)
-		HANDLE_KEY(pDown, P)
-		HANDLE_KEY(rDown, R)
+		HANDLE_KEY(sDown, S)	// one cycle
+		HANDLE_KEY(fDown, F)	// one frame
+		HANDLE_KEY(spaceDown, Space) // pause/unpause
+		HANDLE_KEY(iDown, I)	// one instruction
+		HANDLE_KEY(pDown, P)	// change palette
+		HANDLE_KEY(rDown, R)	// reset
 
 		if (spaceDown == 1)
 			running ^= true;
@@ -147,11 +164,13 @@ int WinMain()
 
 		sf::Vector2f ws = (sf::Vector2f)window.getSize(),
 					 ws_cpuDebug = (sf::Vector2f)window_cpuDebug.getSize(),
+					 ws_ppuDebug_pattern = (sf::Vector2f)window_ppuDebug_pattern.getSize(),
 					 ws_ppuDebug = (sf::Vector2f)window_ppuDebug.getSize();
 
 		window.clear(sf::Color(128, 128, 128));
 		window_cpuDebug.clear(sf::Color(128, 128, 128));
 		window_ppuDebug.clear(sf::Color(128, 128, 128));
+		window_ppuDebug_pattern.clear(sf::Color(128, 128, 128));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -165,7 +184,7 @@ int WinMain()
 
 		for (uint16_t i = 0; i < 24; i++)
 		{
-			memory.setString("$" + HEX((i + memoryScroll) * 8));
+			memory.setString("$" + HEX_2B((i + memoryScroll) * 8));
 			memory.setPosition(sf::Vector2f(310, i * 40.f));
 			window_cpuDebug.draw(memory);
 			for (uint16_t j = 0; j < 8; j++)
@@ -193,25 +212,41 @@ int WinMain()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-		float patternTableSize = std::min(ws_ppuDebug.x, ws_ppuDebug.y);
+		float patternTableSize = std::min(ws_ppuDebug_pattern.x, ws_ppuDebug_pattern.y);
 
 		sf::RectangleShape patternTable(sf::Vector2f(patternTableSize, patternTableSize));
 		//patternTable.setOrigin(patternTableSize / 2.f, patternTableSize / 2.f);
-		//patternTable.setPosition(sf::Vector2f(ws_ppuDebug.x / 2.f, ws_ppuDebug.y / 2.f));
+		//patternTable.setPosition(sf::Vector2f(ws_ppuDebug_pattern.x / 2.f, ws_ppuDebug_pattern.y / 2.f));
 		sf::Texture patternTableTex;
 		patternTableTex.loadFromImage(emu.GetPatternTable(0, displayPalette));
 		patternTable.setTexture(&patternTableTex);
-		window_ppuDebug.draw(patternTable);
+		window_ppuDebug_pattern.draw(patternTable);
 
 		patternTable.setPosition(sf::Vector2f(patternTableSize, 0));
 		patternTableTex.loadFromImage(emu.GetPatternTable(1, displayPalette));
-		window_ppuDebug.draw(patternTable);
+		window_ppuDebug_pattern.draw(patternTable);
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+		for (uint16_t i = 0; i < 24; i++)
+		{
+			memory.setString("$" + HEX_2B((i + ppuMemoryScroll) * 8));
+			memory.setPosition(sf::Vector2f(20, 20 + i * 40.f));
+			window_ppuDebug.draw(memory);
+			for (uint16_t j = 0; j < 8; j++)
+			{
+				memory.setString(HEX_1B(emu.PPU_readMemory1B(j + 8 * (i + ppuMemoryScroll))));
+				memory.setPosition(sf::Vector2f(20 + j * 60 + 160.f, 20 + i * 40.f));
+				window_ppuDebug.draw(memory);
+			}
+		}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 		window.display();
 		window_cpuDebug.display();
 		window_ppuDebug.display();
+		window_ppuDebug_pattern.display();
 	}
 
 	return 0;

@@ -257,8 +257,8 @@ public:
 
 		else if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
 		{
-			//if (address < 0x8000) // Family BASIC only
-			//	;
+			if (address < 0x8000) // Family BASIC only
+				CPU_memory[address] = value; // 8 KB PRG RAM
 
 			//if (address < 0xc000) // First 16 KB of ROM.
 			//	; // CPU_memory[address] = value;
@@ -308,12 +308,14 @@ public:
 				{
 					uint8_t value = ppuReadBuffer;
 					ppuReadBuffer = PPU_readMemory1B(v);
+					v += REG_GET_FLAG(PPU_CTRL, PPU_CTRL_VRAM_ADDRESS_INCREMENT_DIRECTION) ? 32 : 1;
 					return value;
 				}
 				else
 				{
 					ppuReadBuffer = PPU_readMemory1B(v);
-					return PPU_readMemory1B(v);
+					v += REG_GET_FLAG(PPU_CTRL, PPU_CTRL_VRAM_ADDRESS_INCREMENT_DIRECTION) ? 32 : 1;
+					return ppuReadBuffer;
 				}
 			}
 		}
@@ -336,7 +338,7 @@ public:
 		if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
 		{
 			if (address < 0x8000) // Family BASIC only
-				return 0;
+				return CPU_memory[address]; // 8 KB PRG RAM
 
 			if (address < 0xc000) // First 16 KB of ROM.
 				return CPU_memory[address];
@@ -375,7 +377,7 @@ public:
 
 	uint16_t CPU_readMemory2B(uint16_t address)
 	{
-		return ((uint16_t)CPU_readMemory1B(address + 1) << 8) | CPU_readMemory1B(address);
+		return (((uint16_t)CPU_readMemory1B(address + 1) << 8) | CPU_readMemory1B(address));
 	}
 
 	void CPU_writeMemory2B(uint16_t address, uint16_t value)
@@ -594,6 +596,8 @@ public:
 
 		bool grayscale = REG_GET_FLAG(PPU_MASK, PPU_MASK_GRAYSCALE);
 		uint8_t colorCode = GetColorCodeFromPalette(palette, Background, paletteIndex);
+		if (paletteIndex == 0)
+			colorCode = PPU_readMemory1B(0x3f00);
 		uint8_t chroma = (colorCode & 0x0f);
 		uint8_t luma = (colorCode >> 4);
 		if (grayscale && chroma < 0x0d)
