@@ -57,8 +57,31 @@ void NESEmulator::cycle(bool printLog, bool emulateArtifacts)
 
 void NESEmulator::PPU_cycle(bool emulateArtifacts)
 {
-	if (!(PPU_cycles < 0 || PPU_cycles > 255 || PPU_scanline < 0 || PPU_scanline > 239))
+	if (RENDERING_ENABLED)
 	{
+		if (PPU_cycles == 257)
+		{
+			LOOPY_SET_COARSE_X(v, LOOPY_GET_COARSE_X(t));
+			LOOPY_SET_NAMETABLE_X(v, LOOPY_GET_NAMETABLE_X(t));
+		}
+		if (PPU_cycles >= 280 && PPU_cycles <= 304 && PPU_scanline == 261) // 280 - 304
+		{
+			LOOPY_SET_COARSE_Y(v, LOOPY_GET_COARSE_Y(t));
+			LOOPY_SET_FINE_Y(v, LOOPY_GET_FINE_Y(t));
+			LOOPY_SET_NAMETABLE_Y(v, LOOPY_GET_NAMETABLE_Y(t));
+			//v = t;
+		}
+	}
+
+	if (PPU_cycles == 256)
+		PPU_Y_increment();
+
+	if (PPU_cycles < 256 && PPU_scanline < 240)
+	{
+		x = PPU_cycles % 8;
+		if (x == 0 && !(PPU_cycles == 0/* && PPU_scanline == 0*/))
+			PPU_coarse_X_increment();
+
 		RenderBGPixel(emulateArtifacts);
 	}
 
@@ -68,22 +91,24 @@ void NESEmulator::PPU_cycle(bool emulateArtifacts)
 		if(!stopCPU)
 			NMI();
 	}
-	if (PPU_scanline == -1 && PPU_cycles == 1)
+	if (PPU_scanline == 261 && PPU_cycles == 1)
 	{
 		REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_VBLANK);
+		REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_SPRITE_0_HIT);
+		REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_SPRITE_OVERFLOW);
 	}
 
 	PPU_cycles++;
-	if (PPU_cycles >= 341)
+	if (PPU_cycles > 340)
 	{
 		PPU_cycles = 0;
 		PPU_scanline++;
-	}
-	if (PPU_scanline >= 261)
-	{
-		PPU_scanline = -1;
-		screen = screen2;
-		frameFinished = true;
+		if (PPU_scanline > 261)
+		{
+			PPU_scanline = 0;
+			screen = screen2;
+			frameFinished = true;
+		}
 	}
 }
 

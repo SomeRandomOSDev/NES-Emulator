@@ -133,7 +133,7 @@ public:
 			
 			break;
 
-		case 1:
+		/*case 1:
 			mapper = Mapper1_MMC1;
 
 			mirroring = Mirroring(header.flags6 & 1);
@@ -143,7 +143,7 @@ public:
 
 			LOG_ADD_LINE("Loaded successfully (mapper 1).");
 
-			break;
+			break;*/
 
 		default:
 			LOG_ADD_LINE("Unknown mapper (mapper " + std::to_string(mapperNb) + ").");
@@ -161,13 +161,13 @@ public:
 		// Nametable mirroring
 		if (mirroring == Horizontal)
 		{
-			if (address >= 0x2800 && address < 0x3000)
-				address -= 0x800;
+			if ((address >= 0x2400 && address < 0x2800) || (address >= 0x2c00 && address < 0x3000))
+				address -= 0x400;
 		}
 		else if (mirroring == Vertical)
 		{
-			if ((address >= 0x2400 && address < 0x2800) || (address >= 0x2c00 && address < 0x3000))
-				address -= 0x400;
+			if ((address >= 0x2800 && address < 0x2c00) || (address >= 0x2c00 && address < 0x3000))
+				address -= 0x800;
 		}
 
 		if (address >= 0x3000 && address <= 0x3eff) // mirrors of 0x2000 - 0x2eff
@@ -202,6 +202,10 @@ public:
 			case 0x0000: // PPU CTRL
 				PPU_CTRL = value;
 
+				LOOPY_SET_NAMETABLE(t, 
+					REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_Y) * 2 +
+					REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_X));
+
 				break;
 
 			case 0x0001: // PPU MASK
@@ -209,11 +213,27 @@ public:
 
 				break;
 
+			case 0x0005: // PPU SCROLL
+				if (w == 0) // X
+				{
+					x = (value & 0b111);
+					LOOPY_SET_COARSE_X(t, (value >> 3));
+				}
+				else        // Y
+				{
+					LOOPY_SET_FINE_Y(t, (value & 0b111));
+					LOOPY_SET_COARSE_Y(t, (value >> 3));
+				}
+
+				w ^= true;
+
+				break;
+
 			case 0x0006: // PPU ADDRESS
 				if (w == 0)
 				{
 					t &= 0x00ff;
-					t |= (uint16_t)value << 8;
+					t |= (uint16_t)(value & 0b01111111) << 8;
 				}
 				else
 				{
@@ -292,7 +312,7 @@ public:
 
 			switch (regNb)
 			{
-			case 0x0002:
+			case 0x0002: // PPU STATUS
 			{
 				w = false;
 
@@ -303,7 +323,7 @@ public:
 				return value;
 			}
 
-			case 0x0007:
+			case 0x0007:	// PPU DATA
 				if (address <= 0x3eff)
 				{
 					uint8_t value = ppuReadBuffer;
@@ -395,6 +415,45 @@ public:
 	{
 		PPU_writeMemory1B(address, value & 0xff);
 		PPU_writeMemory1B(address + 1, value >> 8);
+	}
+
+	void PPU_coarse_X_increment()
+	{
+		if (RENDERING_ENABLED)
+		{
+			if ((v & 0x001F) == 31)
+			{
+				v &= ~0x001F;
+				v ^= 0x0400;
+			}
+			else
+				v += 1;
+		}
+	}
+
+	void PPU_Y_increment()
+	{
+		if (RENDERING_ENABLED)
+		{
+			if ((v & 0x7000) != 0x7000)
+				v += 0x1000;
+			else
+			{
+				v &= ~0x7000;
+				int y = (v & 0x03E0) >> 5;
+				if (y == 29)
+				{
+					y = 0;
+					v ^= 0x0800;
+				}
+				else if (y == 31)
+					y = 0;
+				else
+					y += 1;
+
+				v = (v & ~0x03E0) | (y << 5);
+			}
+		}
 	}
 
 	void push1B(uint8_t value)
@@ -550,24 +609,25 @@ public:
 
 	void RenderBGPixel(bool emulateArtifacts)
 	{
-		uint8_t tileX = PPU_cycles / 8, tileY = PPU_scanline / 8;
-		uint8_t attributeTileX = PPU_cycles / 32, attributeTileY = PPU_scanline / 32;
-		uint8_t smallAttributeTileX = PPU_cycles / 16, smallAttributeTileY = PPU_scanline / 16;
+		//uint8_t nametableX = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_X),
+		//		nametableY = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_Y);
 
-		uint8_t nametableX = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_X),
-				nametableY = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_Y);
+		//uint16_t nametableBase = 0x2000 + 0x400 * (nametableY * 2 + nametableX);
 
-		uint16_t nametableBase = 0x2000 + 0x400 * (nametableY * 2 + nametableX);
+		uint8_t x_pos = x + 8 * LOOPY_GET_COARSE_X(v), y_pos = LOOPY_GET_FINE_Y(v) + 8 * LOOPY_GET_COARSE_Y(v);
 
-		uint16_t attributeTableBase = nametableBase + 0x3c0;
-		uint8_t attributeByte = PPU_readMemory1B(attributeTableBase + attributeTileY * 8 + attributeTileX);
+		uint8_t attributeTileX = x_pos / 32, attributeTileY = y_pos / 32;
+		uint8_t smallAttributeTileX = x_pos / 16, smallAttributeTileY = y_pos / 16;
+
+		uint8_t attributeByte = 
+		PPU_readMemory1B(0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07));
 
 		uint8_t palette_bottomRight = (attributeByte >> 6),
 				palette_bottomLeft = (attributeByte >> 4) & 0b11,
 				palette_topRight = (attributeByte >> 2) & 0b11,
 				palette_topLeft = attributeByte & 0b11;
 
-		uint8_t palette = 0;
+		uint8_t palette;
 		if (smallAttributeTileY & 1)
 		{
 			if (smallAttributeTileX & 1)
@@ -583,26 +643,36 @@ public:
 				palette = palette_topLeft;
 		}
 
-		uint8_t bgTile = NametableGetTile(tileX, tileY, nametableBase);
-		uint8_t tileOffsetX = PPU_cycles - tileX * 8, tileOffsetY = PPU_scanline - tileY * 8;
+		uint8_t bgTile = PPU_readMemory1B(0x2000 | (v & 0x0fff));
+
+		//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(v & 0x0fff));
+		//return;
+
+		//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(LOOPY_GET_NAMETABLE(v) + 0x20));
+		//return;
+
+		//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(tileX | (tileY << 5)));
+		//return;
+
 		bool patternTable = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_BG_PATTERN_TABLE_ADDRESS);
 
-		uint8_t row_lo = GetRowFromTile(0, patternTable, bgTile, tileOffsetY),
-				row_hi = GetRowFromTile(1, patternTable, bgTile, tileOffsetY);
+		uint8_t row_lo = GetRowFromTile(0, patternTable, bgTile, LOOPY_GET_FINE_Y(v)),
+				row_hi = GetRowFromTile(1, patternTable, bgTile, LOOPY_GET_FINE_Y(v));
 
-		uint8_t paletteIndex_lo = REG_GET_FLAG(row_lo, 7 - tileOffsetX),
-				paletteIndex_hi = REG_GET_FLAG(row_hi, 7 - tileOffsetX);
+		uint8_t paletteIndex_lo = REG_GET_FLAG(row_lo, 7 - x),
+				paletteIndex_hi = REG_GET_FLAG(row_hi, 7 - x);
 		uint8_t paletteIndex = (paletteIndex_hi << 1) | paletteIndex_lo;
 
 		bool grayscale = REG_GET_FLAG(PPU_MASK, PPU_MASK_GRAYSCALE);
+
 		uint8_t colorCode = GetColorCodeFromPalette(palette, Background, paletteIndex);
-		if (paletteIndex == 0)
+		if (paletteIndex == 0 || (!REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_BG)))
 			colorCode = PPU_readMemory1B(0x3f00);
+
 		uint8_t chroma = (colorCode & 0x0f);
 		uint8_t luma = (colorCode >> 4);
-		if (grayscale && chroma < 0x0d)
+		if (grayscale)
 			colorCode &= 0x30; // colorCode = (luma << 4);
-		colorCode %= 64;
 		sf::Color color = NESColorToRGB(colorCode);
 
 		bool attenuateRed, attenuateGreen, attenuateBlue;
@@ -612,7 +682,7 @@ public:
 						 REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
 		attenuateBlue = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
 						REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN);
-		if ((colorCode & 0x0f) < 0x0d)
+		if (chroma < 0x0d)
 			color = AttenuateColor(color, attenuateRed, attenuateGreen, attenuateBlue);
 
 		if (emulateArtifacts)
@@ -643,7 +713,7 @@ public:
 	uint8_t CPU_cycles;
 	uint16_t PPU_cycles;
 	uint8_t cycleCounter;
-	int16_t PPU_scanline;
+	uint16_t PPU_scanline;
 	Mapper mapper;
 	Mirroring mirroring;
 	bool PRGRAM;
@@ -658,6 +728,7 @@ public:
 	uint16_t v; // VRAM address
 	uint16_t t; // temp VRAM address
 	uint8_t ppuReadBuffer;
+	uint8_t x; // fine x scroll (3 bits)
 
 	bool controllerLatch1;
 	uint8_t controller1ShiftRegister;

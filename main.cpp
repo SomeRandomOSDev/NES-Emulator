@@ -48,7 +48,7 @@ int WinMain()
 	window.setFramerateLimit(60);
 	window.setVerticalSyncEnabled(false);
 
-	bool emulateArtifacts = false;
+	bool emulateArtifacts = false, log = false;
 
 	while (
 window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && window_ppuDebug_pattern.isOpen())
@@ -113,7 +113,7 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 		if (fDown == 1 || running)
 		{
 			while(!emu.frameFinished)
-				emu.cycle(true, emulateArtifacts);
+				emu.cycle(log, emulateArtifacts);
 
 			emu.frameFinished = false;
 
@@ -122,7 +122,7 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 
 		if (sDown == 1)
 		{
-			emu.cycle(true, emulateArtifacts);
+			emu.cycle(log, emulateArtifacts);
 
 			emu.frameFinished = false;
 
@@ -136,8 +136,8 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 			{
 
 				while (emu.CPU_cycles > 0)
-					emu.cycle(true, emulateArtifacts);
-				emu.cycle(true, emulateArtifacts);
+					emu.cycle(log, emulateArtifacts);
+				emu.cycle(log, emulateArtifacts);
 
 				emu.frameFinished = false;
 

@@ -95,6 +95,22 @@ namespace
 #define PPU_CTRL_MASTER_SLAVE						    6
 #define PPU_CTRL_NMI									7
 
+#define RENDERING_ENABLED           (REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_BG) || REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_SPRITES))
+
+#define LOOPY_GET_COARSE_X(reg)		(reg & 0b11111)
+#define LOOPY_GET_COARSE_Y(reg)		((reg >> 5) & 0b11111)
+#define LOOPY_GET_NAMETABLE(reg)	((reg >> 10) & 0b11)
+#define LOOPY_GET_NAMETABLE_X(reg)	((reg >> 10) & 1)
+#define LOOPY_GET_NAMETABLE_Y(reg)	((reg >> 11) & 1)
+#define LOOPY_GET_FINE_Y(reg)		((reg >> 12) & 0b111)
+
+#define LOOPY_SET_COARSE_X(reg, val)		reg &= ~((uint16_t)          0b11111);	reg |= ((val) & 0b11111)
+#define LOOPY_SET_COARSE_Y(reg, val)		reg &= ~((uint16_t)     0b1111100000);	reg |= (((uint16_t)(val) & 0b11111) << 5)
+#define LOOPY_SET_NAMETABLE(reg, val)		reg &= ~((uint16_t)   0b110000000000);	reg |= (((uint16_t)(val) & 0b11) << 10)
+#define LOOPY_SET_NAMETABLE_X(reg, val)		reg &= ~((uint16_t)1 << 10);	reg |= (((uint16_t)(val) & 1) << 10)
+#define LOOPY_SET_NAMETABLE_Y(reg, val)		reg &= ~((uint16_t)1 << 11);	reg |= (((uint16_t)(val) & 1) << 11)
+#define LOOPY_SET_FINE_Y(reg, val)			reg &= ~((uint16_t)0b111000000000000);	reg |= (((uint16_t)(val) & 0b111) << 12)
+
 #define updateRegistersText() registers.setString("A:  #$" + HEX_1B(emu.A) + "\n" + \
 												  "X:  #$" + HEX_1B(emu.X) + "\n" + \
 												  "Y:  #$" + HEX_1B(emu.Y) + "\n" + \
@@ -177,9 +193,9 @@ namespace
 
 	inline sf::Color NESColorToRGB(uint8_t color)
 	{
-		return sf::Color(colorToRGB_palette[color * 3], 
-					 	 colorToRGB_palette[color * 3 + 1], 
-						 colorToRGB_palette[color * 3 + 2]);
+		return sf::Color(colorToRGB_palette[(color % 64) * 3], 
+					 	 colorToRGB_palette[(color % 64) * 3 + 1],
+						 colorToRGB_palette[(color % 64) * 3 + 2]);
 	}
 
 	sf::Color RotateHue(const sf::Color& in, const float angle)
