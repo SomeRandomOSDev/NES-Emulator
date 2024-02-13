@@ -78,8 +78,10 @@ void NESEmulator::PPU_cycle(bool emulateArtifacts)
 
 	if (PPU_cycles < 256 && PPU_scanline < 240)
 	{
-		x = PPU_cycles % 8;
-		if (x == 0 && !(PPU_cycles == 0/* && PPU_scanline == 0*/))
+		x++;
+		x %= 8;
+
+		if(x == 0)
 			PPU_coarse_X_increment();
 
 		RenderBGPixel(emulateArtifacts);

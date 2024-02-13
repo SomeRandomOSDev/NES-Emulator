@@ -133,17 +133,17 @@ public:
 			
 			break;
 
-		/*case 1:
-			mapper = Mapper1_MMC1;
+		//case 1:
+		//	mapper = Mapper1_MMC1;
 
-			mirroring = Mirroring(header.flags6 & 1);
+		//	mirroring = Mirroring(header.flags6 & 1);
 
-			memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
-			memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
+		//	memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
+		//	memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
 
-			LOG_ADD_LINE("Loaded successfully (mapper 1).");
+		//	LOG_ADD_LINE("Loaded successfully (mapper 1).");
 
-			break;*/
+		//	break;
 
 		default:
 			LOG_ADD_LINE("Unknown mapper (mapper " + std::to_string(mapperNb) + ").");
@@ -609,13 +609,11 @@ public:
 
 	void RenderBGPixel(bool emulateArtifacts)
 	{
-		//uint8_t nametableX = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_X),
-		//		nametableY = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_Y);
-
 		//uint16_t nametableBase = 0x2000 + 0x400 * (nametableY * 2 + nametableX);
 
 		uint8_t x_pos = x + 8 * LOOPY_GET_COARSE_X(v), y_pos = LOOPY_GET_FINE_Y(v) + 8 * LOOPY_GET_COARSE_Y(v);
 
+		//uint8_t tileX = x_pos / 8, tileY = y_pos / 8;
 		uint8_t attributeTileX = x_pos / 32, attributeTileY = y_pos / 32;
 		uint8_t smallAttributeTileX = x_pos / 16, smallAttributeTileY = y_pos / 16;
 
