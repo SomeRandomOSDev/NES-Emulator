@@ -50,8 +50,10 @@ public:
 		PPU_MASK = 0x00;
 		PPU_STATUS = 0b10100000;
 		w = false;
+		t = 0x0000;
 		v = 0x0000;
 		ppuReadBuffer = 0x00;
+		x = 0;
 
 		controllerLatch1 = false;
 
@@ -75,7 +77,10 @@ public:
 		PPU_MASK = 0x00;
 		PPU_STATUS &= 0b10000000;
 		w = false;
+		t = 0x0000;
+		v = 0x0000;
 		ppuReadBuffer = 0x00;
+		x = 0;
 
 		controllerLatch1 = false;
 
@@ -114,8 +119,8 @@ public:
 
 		PRGRAM = (header.flags6 >> 1) & 1;
 
-		uint16_t PRGROM_location = 16 + (512 * trainer), PRGROM_size = 16384 * header.PRGROMSize;
-		uint16_t CHRROM_location = PRGROM_location + PRGROM_size, CHRROM_size = 8192 * header.CHRROMSize;
+		uint32_t PRGROM_location = 16 + (512 * trainer), PRGROM_size = 16384 * header.PRGROMSize;
+		uint32_t CHRROM_location = PRGROM_location + PRGROM_size, CHRROM_size = 8192 * header.CHRROMSize;
 
 		stopCPU = false;
 		mapper = Other;
@@ -129,21 +134,25 @@ public:
 			memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
 			memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
 
-			LOG_ADD_LINE("Loaded successfully (mapper 0).");
+			LOG_ADD_LINE("Loaded successfully : ");
+			LOG_ADD_LINE("mapper 0 | " + 
+			(mirroring == Horizontal ? "Horizontal" : "Vertical") + " mirroring.");
 			
 			break;
 
-		//case 1:
-		//	mapper = Mapper1_MMC1;
+		case 1:
+			mapper = Mapper1_MMC1;
 
-		//	mirroring = Mirroring(header.flags6 & 1);
+			mirroring = Mirroring(header.flags6 & 1);
 
-		//	memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
-		//	memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
+			memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
+			memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
 
-		//	LOG_ADD_LINE("Loaded successfully (mapper 1).");
+			LOG_ADD_LINE("Loaded successfully : ");
+			LOG_ADD_LINE("mapper 1 | " +
+			(mirroring == Horizontal ? "Horizontal" : "Vertical") + " mirroring.");
 
-		//	break;
+			break;
 
 		default:
 			LOG_ADD_LINE("Unknown mapper (mapper " + std::to_string(mapperNb) + ").");
@@ -154,9 +163,21 @@ public:
 		PC = CPU_readMemory2B(RESET_VECTOR);
 	}
 
+	bool loadPaletteFromPAL(std::string fileName)
+	{
+		std::ifstream f(fileName, std::ios::binary);
+		if (!f) return false;
+		std::vector<uint8_t> buffer(std::istreambuf_iterator<char>(f), {});
+		f.close();
+
+		memcpy(&NESPalette[0], &buffer[0], 192);
+
+		return true;
+	}
+
 	uint16_t PPU_HANDLE_ADDRESS(uint16_t address)
 	{
-		address %= 0x4000;
+		address &= 0x3fff;
 
 		// Nametable mirroring
 		if (mirroring == Horizontal)
@@ -203,8 +224,8 @@ public:
 				PPU_CTRL = value;
 
 				LOOPY_SET_NAMETABLE(t, 
-					REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_Y) * 2 +
-					REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_X));
+				REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_Y) * 2 +
+				REG_GET_FLAG(PPU_CTRL, PPU_CTRL_NAMETABLE_ADDRESS_X));
 
 				break;
 
@@ -528,6 +549,13 @@ public:
 		return lo + (CPU_readMemory1B((d + 1) % 256) * 256) + Y;
 	}
 
+	inline sf::Color NESColorToRGB(uint8_t colorCode)
+	{
+		return sf::Color(NESPalette[(colorCode % 64) * 3],
+						 NESPalette[(colorCode % 64) * 3 + 1],
+						 NESPalette[(colorCode % 64) * 3 + 2]);
+	}
+
 	uint8_t GetColorCodeFromPalette(uint8_t paletteNumber, PaletteType paletteType, uint8_t index)
 	{
 		//  43210
@@ -607,7 +635,7 @@ public:
 		return color;
 	}
 
-	void RenderBGPixel(bool emulateArtifacts)
+	void RenderBGPixel(uint8_t& colorCode, bool bgPalette)
 	{
 		//uint16_t nametableBase = 0x2000 + 0x400 * (nametableY * 2 + nametableX);
 
@@ -661,43 +689,17 @@ public:
 				paletteIndex_hi = REG_GET_FLAG(row_hi, 7 - x);
 		uint8_t paletteIndex = (paletteIndex_hi << 1) | paletteIndex_lo;
 
-		bool grayscale = REG_GET_FLAG(PPU_MASK, PPU_MASK_GRAYSCALE);
+		if (!(paletteIndex == 0 || (!REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_BG))))
+		{
+			colorCode = GetColorCodeFromPalette(palette, Background, paletteIndex);
 
-		uint8_t colorCode = GetColorCodeFromPalette(palette, Background, paletteIndex);
-		if (paletteIndex == 0 || (!REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_BG)))
-			colorCode = PPU_readMemory1B(0x3f00);
-
-		uint8_t chroma = (colorCode & 0x0f);
-		uint8_t luma = (colorCode >> 4);
-		if (grayscale)
-			colorCode &= 0x30; // colorCode = (luma << 4);
-		sf::Color color = NESColorToRGB(colorCode);
-
-		bool attenuateRed, attenuateGreen, attenuateBlue;
-		attenuateRed = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN) |
-					   REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
-		attenuateGreen = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
-						 REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
-		attenuateBlue = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
-						REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN);
-		if (chroma < 0x0d)
-			color = AttenuateColor(color, attenuateRed, attenuateGreen, attenuateBlue);
-
-		if (emulateArtifacts)
-			color = RotateHue(color, 5.f * (colorCode >> 4)); // Differential Phase Distortion
-
-
-		//color = color + NESColorToRGB(palette);
-
-		//color.r = uint8_t(color.r / 2);
-		//color.g = uint8_t(color.g / 2);
-		//color.b = uint8_t(color.b / 2);
-
-		screen2.setPixel(PPU_cycles, PPU_scanline, color);
+			if (bgPalette)
+				colorCode = palette + 0x10;
+		}
 	}
 
-	void cycle(bool printLog, bool emulateArtifacts);
-	void PPU_cycle(bool emulateArtifacts);
+	void cycle(bool printLog, bool emulateArtifacts, bool bgPalette);
+	void PPU_cycle(bool emulateArtifacts, bool bgPalette);
 	void INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_FLAG);
 	void NMI();
 	std::string CPU_cycle();
@@ -718,6 +720,7 @@ public:
 
 	sf::Image screen, screen2;
 	bool frameFinished;
+	uint8_t NESPalette[64 * 3];
 
 	std::string log;
 	uint32_t logLines;

@@ -31,7 +31,7 @@ void NESEmulator::INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_
 	}
 }
 
-void NESEmulator::cycle(bool printLog, bool emulateArtifacts)
+void NESEmulator::cycle(bool printLog, bool emulateArtifacts, bool bgPalette)
 {
 	if (controllerLatch1)
 	{
@@ -42,7 +42,7 @@ void NESEmulator::cycle(bool printLog, bool emulateArtifacts)
 		}
 	}
 
-	PPU_cycle(emulateArtifacts);
+	PPU_cycle(emulateArtifacts, bgPalette);
 
 	if (cycleCounter == 0)
 	{
@@ -55,7 +55,7 @@ void NESEmulator::cycle(bool printLog, bool emulateArtifacts)
 	cycleCounter %= 3;
 }
 
-void NESEmulator::PPU_cycle(bool emulateArtifacts)
+void NESEmulator::PPU_cycle(bool emulateArtifacts, bool bgPalette)
 {
 	if (RENDERING_ENABLED)
 	{
@@ -84,7 +84,36 @@ void NESEmulator::PPU_cycle(bool emulateArtifacts)
 		if(x == 0)
 			PPU_coarse_X_increment();
 
-		RenderBGPixel(emulateArtifacts);
+		uint8_t colorCode = PPU_readMemory1B(0x3f00);
+
+		if (bgPalette)
+			colorCode = 0;
+
+		RenderBGPixel(colorCode, bgPalette);
+
+		bool grayscale = REG_GET_FLAG(PPU_MASK, PPU_MASK_GRAYSCALE);
+
+		uint8_t chroma = (colorCode & 0x0f);
+		uint8_t luma = (colorCode >> 4);
+		if (grayscale)
+			colorCode &= 0x30; // colorCode = (luma << 4);
+
+		sf::Color color = NESColorToRGB(colorCode);
+
+		bool attenuateRed, attenuateGreen, attenuateBlue;
+		attenuateRed = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN) |
+			REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
+		attenuateGreen = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
+			REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
+		attenuateBlue = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
+			REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN);
+		if (chroma < 0x0d)
+			color = AttenuateColor(color, attenuateRed, attenuateGreen, attenuateBlue);
+
+		if (emulateArtifacts)
+			color = RotateHue(color, 5.f * (colorCode >> 4)); // Differential Phase Distortion
+
+		screen2.setPixel(PPU_cycles, PPU_scanline, color);
 	}
 
 	if (PPU_scanline == 241 && PPU_cycles == 1)

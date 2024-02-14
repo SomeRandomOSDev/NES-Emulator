@@ -16,6 +16,23 @@ int WinMain()
 	emu.loadFromiNES(__argv[0 + 1]);
 	//emu.PC = 0xC000; // nestest.nes in automation
 
+	std::vector<std::string> palettes = { 
+	"Composite Direct (FBX)",
+	"Smooth (FBX)",
+	"PVM Style D93 (FBX)",
+	"NES Classic (FBX)",
+	"Sony CXA",
+	"PC-10",
+	"Wavebeam"
+	};
+
+	std::string paletteName = palettes[0];
+	bool paletteLoaded = emu.loadPaletteFromPAL("resources/" + paletteName + ".pal");
+
+	NES_LOG_ADD_LINE(emu, paletteLoaded ? 
+	"Palette loaded (" + paletteName + ")" :
+	("Couldnt find palette \"" + paletteName + "\""));
+
 	sf::Font font;
 	font.loadFromFile("resources/font.ttf");
 	sf::Text registers;
@@ -33,8 +50,10 @@ int WinMain()
 	memory.setString("00");
 
 	int32_t memoryScroll = 0, ppuMemoryScroll = 0;
+	uint8_t paletteIndex = 0;
 
-	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown = 0, pDown = 0, rDown = 0;
+	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown = 0, pDown = 0, 
+			 rDown = 0, bDown = 0, lDown = 0;
 
 	bool running = false;
 
@@ -45,10 +64,10 @@ int WinMain()
 	window_ppuDebug.create(sf::VideoMode(800, 550), "NES Emulator | PPU Debug");
 	window_ppuDebug_pattern.create(sf::VideoMode(800, 550), "NES Emulator | PPU Debug | Pattern Tables");
 	window.create(sf::VideoMode(800, 550), "NES Emulator");
-	window.setFramerateLimit(60);
+	window.setFramerateLimit((int)60.1);
 	window.setVerticalSyncEnabled(false);
 
-	bool emulateArtifacts = false, log = false;
+	bool emulateArtifacts = true, log = false, bgPalette = false;
 
 	while (
 window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && window_ppuDebug_pattern.isOpen())
@@ -106,6 +125,23 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 		HANDLE_KEY(iDown, I)	// one instruction
 		HANDLE_KEY(pDown, P)	// change palette
 		HANDLE_KEY(rDown, R)	// reset
+		HANDLE_KEY(bDown, B)	// show bg palette
+		HANDLE_KEY(lDown, L)	// change rgb palette
+
+		if (lDown == 1)
+		{
+			paletteIndex++;
+			paletteIndex %= palettes.size();
+
+			std::string paletteName = palettes[paletteIndex];
+			bool paletteLoaded = emu.loadPaletteFromPAL("resources/" + paletteName + ".pal");
+
+			NES_LOG_ADD_LINE(emu, paletteLoaded ?
+				"Palette loaded (" + paletteName + ")" :
+				("Couldnt find palette \"" + paletteName + "\""));
+		}
+
+		bgPalette ^= (bDown == 1);
 
 		if (spaceDown == 1)
 			running ^= true;
@@ -113,7 +149,7 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 		if (fDown == 1 || running)
 		{
 			while(!emu.frameFinished)
-				emu.cycle(log, emulateArtifacts);
+				emu.cycle(log, emulateArtifacts, bgPalette);
 
 			emu.frameFinished = false;
 
@@ -122,7 +158,7 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 
 		if (sDown == 1)
 		{
-			emu.cycle(log, emulateArtifacts);
+			emu.cycle(log, emulateArtifacts, bgPalette);
 
 			emu.frameFinished = false;
 
@@ -136,8 +172,8 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 			{
 
 				while (emu.CPU_cycles > 0)
-					emu.cycle(log, emulateArtifacts);
-				emu.cycle(log, emulateArtifacts);
+					emu.cycle(log, emulateArtifacts, bgPalette);
+				emu.cycle(log, emulateArtifacts, bgPalette);
 
 				emu.frameFinished = false;
 
