@@ -31,7 +31,7 @@ void NESEmulator::INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_
 	}
 }
 
-void NESEmulator::cycle(bool printLog, bool emulateArtifacts, bool bgPalette)
+void NESEmulator::cycle()
 {
 	if (controllerLatch1)
 	{
@@ -42,12 +42,12 @@ void NESEmulator::cycle(bool printLog, bool emulateArtifacts, bool bgPalette)
 		}
 	}
 
-	PPU_cycle(emulateArtifacts, bgPalette);
+	PPU_cycle();
 
 	if (cycleCounter == 0)
 	{
 		std::string instructionLog = CPU_cycle();
-		if (instructionLog != "" && printLog)
+		if (instructionLog != "" && settings.printLog)
 			LOG_ADD_LINE(instructionLog);
 	}
 
@@ -55,7 +55,7 @@ void NESEmulator::cycle(bool printLog, bool emulateArtifacts, bool bgPalette)
 	cycleCounter %= 3;
 }
 
-void NESEmulator::PPU_cycle(bool emulateArtifacts, bool bgPalette)
+void NESEmulator::PPU_cycle()
 {
 	if (RENDERING_ENABLED)
 	{
@@ -84,36 +84,27 @@ void NESEmulator::PPU_cycle(bool emulateArtifacts, bool bgPalette)
 		if(x == 0)
 			PPU_coarse_X_increment();
 
-		uint8_t colorCode = PPU_readMemory1B(0x3f00);
+		if (PPU_cycles == 0) // Wrong sprite evaluation
+		{
+			for (uint8_t i = 0; i < 32; i++)
+				*OAM2GetByte(i) = 0xff;
+			OAM2Size = 0;
+			for (unsigned int i = 0; i < 64; i++)
+			{
+				if (REG_GET_FLAG(PPU_CTRL, PPU_CTRL_SPRITE_SIZE)) // 8x16
+				{
+					if (PPU_scanline >= OAM[i].y && PPU_scanline < (OAM[i].y + 16))
+						copyOAMEntryToOAM2(i);
+				}
+				else // 8x8
+				{
+					if (PPU_scanline >= OAM[i].y && PPU_scanline < (OAM[i].y + 8))
+						copyOAMEntryToOAM2(i);
+				}
+			}
+		}
 
-		if (bgPalette)
-			colorCode = 0;
-
-		RenderBGPixel(colorCode, bgPalette);
-
-		bool grayscale = REG_GET_FLAG(PPU_MASK, PPU_MASK_GRAYSCALE);
-
-		uint8_t chroma = (colorCode & 0x0f);
-		uint8_t luma = (colorCode >> 4);
-		if (grayscale)
-			colorCode &= 0x30; // colorCode = (luma << 4);
-
-		sf::Color color = NESColorToRGB(colorCode);
-
-		bool attenuateRed, attenuateGreen, attenuateBlue;
-		attenuateRed = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN) |
-			REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
-		attenuateGreen = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
-			REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
-		attenuateBlue = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
-			REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN);
-		if (chroma < 0x0d)
-			color = AttenuateColor(color, attenuateRed, attenuateGreen, attenuateBlue);
-
-		if (emulateArtifacts)
-			color = RotateHue(color, 5.f * (colorCode >> 4)); // Differential Phase Distortion
-
-		screen2.setPixel(PPU_cycles, PPU_scanline, color);
+		RenderPixel();
 	}
 
 	if (PPU_scanline == 241 && PPU_cycles == 1)
@@ -127,6 +118,7 @@ void NESEmulator::PPU_cycle(bool emulateArtifacts, bool bgPalette)
 		REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_VBLANK);
 		REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_SPRITE_0_HIT);
 		REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_SPRITE_OVERFLOW);
+		sprite0HitAlreadyHappened = false;
 	}
 
 	PPU_cycles++;

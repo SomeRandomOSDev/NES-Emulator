@@ -114,6 +114,10 @@ namespace
 #define LOOPY_SET_NAMETABLE_Y(reg, val)		reg &= ~((uint16_t)1 << 11);	reg |= (((uint16_t)(val) & 1) << 11)
 #define LOOPY_SET_FINE_Y(reg, val)			reg &= ~((uint16_t)0b111000000000000);	reg |= (((uint16_t)(val) & 0b111) << 12)
 
+#define OAM_ATTRIBUTES_SPRITE_PRIORITY		5 // (0: in front of background; 1: behind background)
+#define OAM_ATTRIBUTES_FLIP_HORIZONTALLY	6
+#define OAM_ATTRIBUTES_FLIP_VERTICALLY		7
+
 #define updateRegistersText() registers.setString("A:  #$" + HEX_1B(emu.A) + "\n" + \
 												  "X:  #$" + HEX_1B(emu.X) + "\n" + \
 												  "Y:  #$" + HEX_1B(emu.Y) + "\n" + \
@@ -255,4 +259,21 @@ namespace
 		sf::Keyboard::X,		// B
 		sf::Keyboard::C			// A
 	};
+
+	struct EmulationSettings
+	{
+		bool printLog;
+		bool emulateDifferentialPhaseDistortion; 
+		bool debugBGPalette;
+	};
+
+#define PACK(decl) __pragma(pack(push, 1)) decl __pragma(pack(pop))
+
+	PACK(struct OAMEntry
+	{
+		uint8_t y;
+		uint8_t tileIndex;
+		uint8_t attributes;
+		uint8_t x;
+	};)
 }

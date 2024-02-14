@@ -26,7 +26,9 @@ int WinMain()
 	"Wavebeam"
 	};
 
-	std::string paletteName = palettes[0];
+	uint8_t paletteIndex = 6;
+
+	std::string paletteName = palettes[paletteIndex];
 	bool paletteLoaded = emu.loadPaletteFromPAL("resources/" + paletteName + ".pal");
 
 	NES_LOG_ADD_LINE(emu, paletteLoaded ? 
@@ -50,7 +52,6 @@ int WinMain()
 	memory.setString("00");
 
 	int32_t memoryScroll = 0, ppuMemoryScroll = 0;
-	uint8_t paletteIndex = 0;
 
 	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown = 0, pDown = 0, 
 			 rDown = 0, bDown = 0, lDown = 0;
@@ -67,7 +68,9 @@ int WinMain()
 	window.setFramerateLimit((int)60.1);
 	window.setVerticalSyncEnabled(false);
 
-	bool emulateArtifacts = true, log = false, bgPalette = false;
+	emu.settings.debugBGPalette = false;
+	emu.settings.emulateDifferentialPhaseDistortion = false;
+	emu.settings.printLog = false;
 
 	while (
 window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && window_ppuDebug_pattern.isOpen())
@@ -141,7 +144,7 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 				("Couldnt find palette \"" + paletteName + "\""));
 		}
 
-		bgPalette ^= (bDown == 1);
+		emu.settings.debugBGPalette ^= (bDown == 1);
 
 		if (spaceDown == 1)
 			running ^= true;
@@ -149,7 +152,7 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 		if (fDown == 1 || running)
 		{
 			while(!emu.frameFinished)
-				emu.cycle(log, emulateArtifacts, bgPalette);
+				emu.cycle();
 
 			emu.frameFinished = false;
 
@@ -158,7 +161,7 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 
 		if (sDown == 1)
 		{
-			emu.cycle(log, emulateArtifacts, bgPalette);
+			emu.cycle();
 
 			emu.frameFinished = false;
 
@@ -172,8 +175,8 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 			{
 
 				while (emu.CPU_cycles > 0)
-					emu.cycle(log, emulateArtifacts, bgPalette);
-				emu.cycle(log, emulateArtifacts, bgPalette);
+					emu.cycle();
+				emu.cycle();
 
 				emu.frameFinished = false;
 
@@ -234,7 +237,7 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 		instructions.setString(emu.log);
 		window_cpuDebug.draw(instructions);
 
-		////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 		float screenSize = std::min(ws.x, ws.y);
 

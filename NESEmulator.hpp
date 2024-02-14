@@ -54,6 +54,7 @@ public:
 		v = 0x0000;
 		ppuReadBuffer = 0x00;
 		x = 0;
+		OAMAddress = 0;
 
 		controllerLatch1 = false;
 
@@ -81,6 +82,7 @@ public:
 		v = 0x0000;
 		ppuReadBuffer = 0x00;
 		x = 0;
+		OAMAddress = 0;
 
 		controllerLatch1 = false;
 
@@ -140,19 +142,19 @@ public:
 			
 			break;
 
-		case 1:
-			mapper = Mapper1_MMC1;
+		//case 1:
+		//	mapper = Mapper1_MMC1;
 
-			mirroring = Mirroring(header.flags6 & 1);
+		//	mirroring = Mirroring(header.flags6 & 1);
 
-			memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
-			memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
+		//	memcpy(&CPU_memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
+		//	memcpy(&PPU_memory[0], &buffer[CHRROM_location], CHRROM_size);
 
-			LOG_ADD_LINE("Loaded successfully : ");
-			LOG_ADD_LINE("mapper 1 | " +
-			(mirroring == Horizontal ? "Horizontal" : "Vertical") + " mirroring.");
+		//	LOG_ADD_LINE("Loaded successfully : ");
+		//	LOG_ADD_LINE("mapper 1 | " +
+		//	(mirroring == Horizontal ? "Horizontal" : "Vertical") + " mirroring.");
 
-			break;
+		//	break;
 
 		default:
 			LOG_ADD_LINE("Unknown mapper (mapper " + std::to_string(mapperNb) + ").");
@@ -234,6 +236,17 @@ public:
 
 				break;
 
+			case 0x0003:
+				OAMAddress = value;
+
+				break;
+
+			case 0x0004:
+				*OAMGetByte(OAMAddress) = value;
+				OAMAddress++;
+
+				break;
+
 			case 0x0005: // PPU SCROLL
 				if (w == 0) // X
 				{
@@ -282,6 +295,18 @@ public:
 		{
 			switch (address)
 			{
+			case 0x4014:
+				for (unsigned int i = 0; i < 256; i++)
+				{
+					uint16_t dmaAddress = ((uint16_t)value << 8) | i;
+
+					*OAMGetByte(OAMAddress + i) = CPU_readMemory1B(dmaAddress);
+				}
+
+				CPU_cycles = 513; // or 514
+
+				break;
+
 			case 0x4016:
 				controllerLatch1 = (value & 1);
 
@@ -292,7 +317,7 @@ public:
 		}
 
 		else if (address < 0x4020) // APU and I/O functionality that is normally disabled
-			;
+			return;
 
 		// Cartridge space
 
@@ -307,6 +332,7 @@ public:
 			//	; //CPU_memory[address - 16384] = value;
 			//if (mapper == Mapper0_NROM_256) // Last 16 KB of ROM (NROM-256) or mirror of $8000-$BFFF (NROM-128).
 			//	; //CPU_memory[address] = value;
+			return;
 		}
 		else if (mapper == Mapper1_MMC1)
 		{
@@ -315,10 +341,12 @@ public:
 			if(address < 0x8000)
 				CPU_memory[address] = value; // 8KB PRG RAM
 			// ROM
+			return;
 		}
 		else
 		{
 			//;
+			return;
 		}
 	}
 
@@ -343,6 +371,9 @@ public:
 
 				return value;
 			}
+
+			case 0x0004:
+				return *OAMGetByte(OAMAddress);
 
 			case 0x0007:	// PPU DATA
 				if (address <= 0x3eff)
@@ -577,7 +608,7 @@ public:
 		//	|++-- - Palette number from attribute table or OAM
 		//	+---- - Background / Sprite select
 
-		uint16_t address = 0x3f00 | ((paletteType << 4) | ((paletteNumber & 0b11) << 2) | (index & 0b11));
+		uint16_t address = 0x3f00 | ((int(paletteType) << 4) | ((paletteNumber & 0b11) << 2) | (index & 0b11));
 
 		return NESColorToRGB(PPU_readMemory1B(address));
 	}
@@ -611,7 +642,7 @@ public:
 					{
 						uint8_t index = REG_GET_FLAG(lo, 7 - l) | (REG_GET_FLAG(hi, 7 - l) << 1);
 
-						img.setPixel(j * 8 + l, i * 8 + k, GetColorFromPalette(palette, Background, index));
+						img.setPixel(j * 8 + l, i * 8 + k, GetColorFromPalette(palette, PaletteType((palette >> 2) & 1), index));
 					}
 				}
 			}
@@ -635,71 +666,240 @@ public:
 		return color;
 	}
 
-	void RenderBGPixel(uint8_t& colorCode, bool bgPalette)
+	uint8_t* OAMGetByte(uint8_t address)
 	{
-		//uint16_t nametableBase = 0x2000 + 0x400 * (nametableY * 2 + nametableX);
+		return ((uint8_t*) &OAM[0] + (address & 0xff));
+	}
 
-		uint8_t x_pos = x + 8 * LOOPY_GET_COARSE_X(v), y_pos = LOOPY_GET_FINE_Y(v) + 8 * LOOPY_GET_COARSE_Y(v);
+	uint8_t* OAM2GetByte(uint8_t address)
+	{
+		return ((uint8_t*)&OAM2[0] + (address % 32));
+	}
 
-		//uint8_t tileX = x_pos / 8, tileY = y_pos / 8;
-		uint8_t attributeTileX = x_pos / 32, attributeTileY = y_pos / 32;
-		uint8_t smallAttributeTileX = x_pos / 16, smallAttributeTileY = y_pos / 16;
+	void copyOAMEntryToOAM2(uint8_t entry)
+	{
+		if (OAM2Size < 8)
+		{
+			OAM2[OAM2Size] = OAM[entry];
+			//if(OAM2[OAM2Size].y < 255)
+			//	OAM2[OAM2Size].y++;
+			OAM2Size++;
+		}
+		else // TODO: Add the bug
+		{
+			REG_SET_FLAG_1(PPU_STATUS, PPU_STATUS_SPRITE_OVERFLOW);
+		}
+	}
 
-		uint8_t attributeByte = 
-		PPU_readMemory1B(0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07));
+	void RenderBGPixel(uint8_t& colorCode, bool& solidBG)
+	{
+		if (REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_BG))
+		{
+			//uint16_t nametableBase = 0x2000 + 0x400 * (nametableY * 2 + nametableX);
 
-		uint8_t palette_bottomRight = (attributeByte >> 6),
+			uint8_t x_pos = x + 8 * LOOPY_GET_COARSE_X(v), y_pos = LOOPY_GET_FINE_Y(v) + 8 * LOOPY_GET_COARSE_Y(v);
+
+			//uint8_t tileX = x_pos / 8, tileY = y_pos / 8;
+			uint8_t attributeTileX = x_pos / 32, attributeTileY = y_pos / 32;
+			uint8_t smallAttributeTileX = x_pos / 16, smallAttributeTileY = y_pos / 16;
+
+			uint8_t attributeByte =
+				PPU_readMemory1B(0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07));
+
+			uint8_t palette_bottomRight = (attributeByte >> 6),
 				palette_bottomLeft = (attributeByte >> 4) & 0b11,
 				palette_topRight = (attributeByte >> 2) & 0b11,
 				palette_topLeft = attributeByte & 0b11;
 
-		uint8_t palette;
-		if (smallAttributeTileY & 1)
-		{
-			if (smallAttributeTileX & 1)
-				palette = palette_bottomRight;
+			uint8_t palette;
+			if (smallAttributeTileY & 1)
+			{
+				if (smallAttributeTileX & 1)
+					palette = palette_bottomRight;
+				else
+					palette = palette_bottomLeft;
+			}
 			else
-				palette = palette_bottomLeft;
-		}
-		else
-		{
-			if (smallAttributeTileX & 1)
-				palette = palette_topRight;
-			else
-				palette = palette_topLeft;
-		}
+			{
+				if (smallAttributeTileX & 1)
+					palette = palette_topRight;
+				else
+					palette = palette_topLeft;
+			}
 
-		uint8_t bgTile = PPU_readMemory1B(0x2000 | (v & 0x0fff));
+			uint8_t bgTile = PPU_readMemory1B(0x2000 | (v & 0x0fff));
 
-		//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(v & 0x0fff));
-		//return;
+			//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(v & 0x0fff));
+			//return;
 
-		//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(LOOPY_GET_NAMETABLE(v) + 0x20));
-		//return;
+			//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(LOOPY_GET_NAMETABLE(v) + 0x20));
+			//return;
 
-		//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(tileX | (tileY << 5)));
-		//return;
+			//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(tileX | (tileY << 5)));
+			//return;
 
-		bool patternTable = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_BG_PATTERN_TABLE_ADDRESS);
+			bool patternTable = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_BG_PATTERN_TABLE_ADDRESS);
 
-		uint8_t row_lo = GetRowFromTile(0, patternTable, bgTile, LOOPY_GET_FINE_Y(v)),
+			uint8_t row_lo = GetRowFromTile(0, patternTable, bgTile, LOOPY_GET_FINE_Y(v)),
 				row_hi = GetRowFromTile(1, patternTable, bgTile, LOOPY_GET_FINE_Y(v));
 
-		uint8_t paletteIndex_lo = REG_GET_FLAG(row_lo, 7 - x),
+			uint8_t paletteIndex_lo = REG_GET_FLAG(row_lo, 7 - x),
 				paletteIndex_hi = REG_GET_FLAG(row_hi, 7 - x);
-		uint8_t paletteIndex = (paletteIndex_hi << 1) | paletteIndex_lo;
+			uint8_t paletteIndex = (paletteIndex_hi << 1) | paletteIndex_lo;
 
-		if (!(paletteIndex == 0 || (!REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_BG))))
-		{
-			colorCode = GetColorCodeFromPalette(palette, Background, paletteIndex);
+			if (paletteIndex != 0)
+			{
+				colorCode = GetColorCodeFromPalette(palette, Background, paletteIndex);
 
-			if (bgPalette)
-				colorCode = palette + 0x10;
+				solidBG = true;
+
+				//colorCode = LOOPY_GET_NAMETABLE(v);
+			}
+
+			if (settings.debugBGPalette)
+				colorCode = palette + 0x11;
 		}
 	}
 
-	void cycle(bool printLog, bool emulateArtifacts, bool bgPalette);
-	void PPU_cycle(bool emulateArtifacts, bool bgPalette);
+	void RenderSpritePixel(uint8_t& colorCode, bool& solidSpr)
+	{
+		if (REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_SPRITES))
+		{
+			uint8_t pos_x = (uint8_t)PPU_cycles, pos_y = (uint8_t)PPU_scanline;
+
+			for (unsigned int i = 0; i < 8; i++)
+			{
+				OAMEntry sprite = OAM2[7 - i];
+				if (REG_GET_FLAG(PPU_CTRL, PPU_CTRL_SPRITE_SIZE)) // 8x16
+				{
+					if (pos_x >= sprite.x && pos_y >= sprite.y &&
+						pos_x < (sprite.x + 8) && pos_y < (sprite.y + 16))
+					{
+						uint8_t pix_x = pos_x - sprite.x, pix_y = pos_y - sprite.y;
+
+						bool half = pix_y / 8; // 0 - top; 1 - bottom
+
+						pix_y %= 8;
+
+						//colorCode = pix_y * 8 + pix_x;
+						//return;
+
+						bool patternTableHalf = (sprite.tileIndex & 1);
+
+						bool flipX = REG_GET_FLAG(sprite.attributes, OAM_ATTRIBUTES_FLIP_HORIZONTALLY);
+						bool flipY = REG_GET_FLAG(sprite.attributes, OAM_ATTRIBUTES_FLIP_VERTICALLY);
+
+						half ^= flipY;
+
+						uint8_t tileRow_lo = GetRowFromTile(0, patternTableHalf, (sprite.tileIndex & 0b11111110) + half, flipY ? (7 - pix_y) : pix_y);
+						uint8_t tileRow_hi = GetRowFromTile(1, patternTableHalf, (sprite.tileIndex & 0b11111110) + half, flipY ? (7 - pix_y) : pix_y);
+
+						uint8_t palette = (sprite.attributes & 0b11);
+						uint8_t paletteIndex_lo = REG_GET_FLAG(tileRow_lo, flipX ? pix_x : (7 - pix_x)),
+							paletteIndex_hi = REG_GET_FLAG(tileRow_hi, flipX ? pix_x : (7 - pix_x));
+						uint8_t paletteIndex = (paletteIndex_hi << 1) | paletteIndex_lo;
+
+						if (paletteIndex != 0)
+						{
+							solidSpr = true;
+							colorCode = GetColorCodeFromPalette(palette, Sprite, paletteIndex);
+							//colorCode = palette;
+						}
+					}
+				}
+				else // 8x8
+				{
+					if (pos_x >= sprite.x && pos_y >= sprite.y &&
+						pos_x < (sprite.x + 8) && pos_y < (sprite.y + 8))
+					{
+						uint8_t pix_x = pos_x - sprite.x, pix_y = pos_y - sprite.y;
+
+						//colorCode = pix_y * 8 + pix_x;
+						//return;
+
+						bool patternTableHalf = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_SPRITE_PATTERN_TABLE_ADDRESS_8x8);
+
+						bool flipX = REG_GET_FLAG(sprite.attributes, OAM_ATTRIBUTES_FLIP_HORIZONTALLY);
+						bool flipY = REG_GET_FLAG(sprite.attributes, OAM_ATTRIBUTES_FLIP_VERTICALLY);
+
+						uint8_t tileRow_lo = GetRowFromTile(0, patternTableHalf, sprite.tileIndex, flipY ? (7 - pix_y) : pix_y);
+						uint8_t tileRow_hi = GetRowFromTile(1, patternTableHalf, sprite.tileIndex, flipY ? (7 - pix_y) : pix_y);
+
+						uint8_t palette = (sprite.attributes & 0b11);
+						uint8_t paletteIndex_lo = REG_GET_FLAG(tileRow_lo, flipX ? pix_x : (7 - pix_x)),
+							paletteIndex_hi = REG_GET_FLAG(tileRow_hi, flipX ? pix_x : (7 - pix_x));
+						uint8_t paletteIndex = (paletteIndex_hi << 1) | paletteIndex_lo;
+
+						if (paletteIndex != 0)
+						{
+							solidSpr = true;
+							colorCode = GetColorCodeFromPalette(palette, Sprite, paletteIndex);
+							//colorCode = palette;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	void RenderPixel()
+	{
+		uint8_t colorCode = PPU_readMemory1B(0x3f00);
+
+		if (settings.debugBGPalette)
+			colorCode = 0;
+
+		bool solidBG = false, solidSpr = false;
+
+		if (OAM2Size != 0)
+		{
+			if (REG_GET_FLAG(OAM2[0].attributes, OAM_ATTRIBUTES_SPRITE_PRIORITY))
+			{
+				RenderSpritePixel(colorCode, solidSpr);
+				RenderBGPixel(colorCode, solidBG);
+			}
+			else
+			{
+				RenderBGPixel(colorCode, solidBG);
+				RenderSpritePixel(colorCode, solidSpr);
+			}
+		}
+		else
+			RenderBGPixel(colorCode, solidBG);
+
+		if (solidBG && solidSpr && PPU_cycles != 255 && !sprite0HitAlreadyHappened)
+		{
+			sprite0HitAlreadyHappened = true;
+			REG_SET_FLAG_1(PPU_STATUS, PPU_STATUS_SPRITE_0_HIT);
+		}
+
+		bool grayscale = REG_GET_FLAG(PPU_MASK, PPU_MASK_GRAYSCALE);
+
+		uint8_t chroma = (colorCode & 0x0f);
+		uint8_t luma = (colorCode >> 4);
+		if (grayscale)
+			colorCode &= 0x30; // colorCode = (luma << 4);
+
+		sf::Color color = NESColorToRGB(colorCode);
+
+		bool attenuateRed, attenuateGreen, attenuateBlue;
+		attenuateRed = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN) |
+			REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
+		attenuateGreen = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
+			REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_BLUE);
+		attenuateBlue = REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_RED) |
+			REG_GET_FLAG(PPU_MASK, PPU_MASK_EMPHASIZE_GREEN);
+		if (chroma < 0x0d)
+			color = AttenuateColor(color, attenuateRed, attenuateGreen, attenuateBlue);
+
+		if (settings.emulateDifferentialPhaseDistortion)
+			color = RotateHue(color, 5.f * (colorCode >> 4));
+
+		screen2.setPixel(PPU_cycles, PPU_scanline, color);
+	}
+
+	void cycle();
+	void PPU_cycle();
 	void INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_FLAG);
 	void NMI();
 	std::string CPU_cycle();
@@ -710,7 +910,7 @@ public:
 	uint8_t A, X, Y, SR, S;
 	uint16_t PC;
 
-	uint8_t CPU_cycles;
+	uint16_t CPU_cycles;
 	uint16_t PPU_cycles;
 	uint8_t cycleCounter;
 	uint16_t PPU_scanline;
@@ -730,9 +930,17 @@ public:
 	uint16_t t; // temp VRAM address
 	uint8_t ppuReadBuffer;
 	uint8_t x; // fine x scroll (3 bits)
+	bool sprite0HitAlreadyHappened;
+
+	OAMEntry OAM[64];
+	OAMEntry OAM2[8];
+	uint8_t OAM2Size;
+	uint8_t OAMAddress;
 
 	bool controllerLatch1;
 	uint8_t controller1ShiftRegister;
 
 	bool stopCPU;
+
+	EmulationSettings settings;
 };
