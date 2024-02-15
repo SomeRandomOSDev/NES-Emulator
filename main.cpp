@@ -214,6 +214,10 @@ int WinMain()
 		sf::Texture nametableTex;
 		uint16_t text_y = 10;
 		rect.setFillColor(sf::Color(100, 100, 100));
+		float scrollX = 
+		(LOOPY_GET_COARSE_X(emu.v) * 8 + emu.x + LOOPY_GET_NAMETABLE_X(emu.v) * 256) * nametableSize / 256.f,
+		scrollY = 
+		(LOOPY_GET_COARSE_Y(emu.v) * 8 + LOOPY_GET_FINE_Y(emu.v) + LOOPY_GET_NAMETABLE_Y(emu.v) * 256) * nametableSize / 256.f;
 
 		switch (windowState)
 		{
@@ -320,6 +324,51 @@ int WinMain()
 			nametableTex.loadFromImage(emu.GetNametable(3));
 			nametable.setTexture(&nametableTex);
 			window.draw(nametable);
+
+			rect.setSize(sf::Vector2f(nametableSize, nametableSize));
+			rect.setFillColor(sf::Color(128, 128, 128, 96));
+			rect.setOutlineColor(sf::Color(32, 32, 32));
+			rect.setOutlineThickness(5);
+
+			rect.setPosition(scrollX, scrollY);
+			window.draw(rect);
+
+			rect.setPosition(scrollX - 2 * nametableSize, scrollY);
+			window.draw(rect);
+
+			rect.setPosition(scrollX + 2 * nametableSize, scrollY);
+			window.draw(rect);
+
+			rect.setPosition(scrollX, scrollY - 2 * nametableSize);
+			window.draw(rect);
+
+			rect.setPosition(scrollX, scrollY + 2 * nametableSize);
+			window.draw(rect);
+
+			rect.setPosition(scrollX - 2 * nametableSize, scrollY - 2 * nametableSize);
+			window.draw(rect);
+
+			rect.setPosition(scrollX + 2 * nametableSize, scrollY - 2 * nametableSize);
+			window.draw(rect);
+
+			rect.setPosition(scrollX - 2 * nametableSize, scrollY + 2 * nametableSize);
+			window.draw(rect);
+
+			rect.setPosition(scrollX + 2 * nametableSize, scrollY + 2 * nametableSize);
+			window.draw(rect);
+
+			rect.setFillColor(sf::Color(128, 128, 128));
+
+			rect.setSize(sf::Vector2f(nametableSize * 2, nametableSize * 2));
+			rect.setFillColor(sf::Color(128, 128, 128));
+			rect.setOutlineThickness(0);
+
+			rect.setPosition(2 * nametableSize, 0);
+			window.draw(rect);
+			rect.setPosition(0, 2 * nametableSize);
+			window.draw(rect);
+			rect.setPosition(2 * nametableSize, 2 * nametableSize);
+			window.draw(rect);
 
 			break;
 
