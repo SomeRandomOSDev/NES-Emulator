@@ -762,7 +762,7 @@ public:
 
 	void RenderBGPixel(uint8_t& colorCode, bool& solidBG)
 	{
-		if (REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_BG))
+		if (!(!REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_BG) || (PPU_cycles < 8 && !REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_BG_LEFT))))
 		{
 			//uint16_t nametableBase = 0x2000 + 0x400 * (nametableY * 2 + nametableX);
 
@@ -832,7 +832,7 @@ public:
 
 	void RenderSpritePixel(uint8_t& colorCode, bool& solidSpr)
 	{
-		if (REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_SPRITES))
+		if (!(!REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_SPRITES) || (PPU_cycles < 8 && !REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_SPRITES_LEFT))))
 		{
 			uint8_t pos_x = (uint8_t)PPU_cycles, pos_y = (uint8_t)PPU_scanline;
 
