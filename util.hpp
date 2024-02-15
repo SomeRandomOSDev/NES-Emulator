@@ -267,6 +267,15 @@ namespace
 		bool debugBGPalette;
 	};
 
+	enum WindowState
+	{
+		Screen = 0,
+		CPUDebug = 1,
+		PPUDebug = 2,
+		PPUDebug_Patterntables = 3,
+		PPUDebug_Nametables = 4
+	};
+
 #define PACK(decl) __pragma(pack(push, 1)) decl __pragma(pack(pop))
 
 	PACK(struct OAMEntry
