@@ -79,10 +79,8 @@ public:
 		PPU_STATUS &= 0b10000000;
 		w = false;
 		t = 0x0000;
-		v = 0x0000;
 		ppuReadBuffer = 0x00;
 		x = 0;
-		OAMAddress = 0;
 
 		controllerLatch1 = false;
 
@@ -376,7 +374,7 @@ public:
 				return *OAMGetByte(OAMAddress);
 
 			case 0x0007:	// PPU DATA
-				if (address <= 0x3eff)
+				if (address < 0x3f00)
 				{
 					uint8_t value = ppuReadBuffer;
 					ppuReadBuffer = PPU_readMemory1B(v);
@@ -390,6 +388,8 @@ public:
 					return ppuReadBuffer;
 				}
 			}
+
+			return 0;
 		}
 
 		if (address < 0x4018) // APU and IO registers
@@ -401,6 +401,7 @@ public:
 				controller1ShiftRegister >>= 1;
 				return value;
 			}
+			return 0;
 		}
 
 		if (address < 0x4020) // APU and I/O functionality that is normally disabled
@@ -410,7 +411,7 @@ public:
 		if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
 		{
 			if (address < 0x8000) // Family BASIC only
-				return CPU_memory[address]; // 8 KB PRG RAM
+				return 0;//CPU_memory[address]; // 8 KB PRG RAM
 
 			if (address < 0xc000) // First 16 KB of ROM.
 				return CPU_memory[address];
@@ -418,6 +419,8 @@ public:
 				return CPU_memory[address - 16384];
 			if (mapper == Mapper0_NROM_256) // Last 16 KB of ROM (NROM-256) or mirror of $8000-$BFFF (NROM-128).
 				return CPU_memory[address];
+
+			return 0;
 		}
 		else if (mapper == Mapper1_MMC1)
 		{
@@ -750,6 +753,12 @@ public:
 		if (OAM2Size < 8)
 		{
 			OAM2[OAM2Size] = OAM[entry];
+			//OAM2[OAM2Size].sprite0 = (entry == 0);
+			if(entry == 0)
+			{
+				sprite0InScanline = true;
+				sprite0LocationInOAM2 = OAM2Size;
+			}
 			//if(OAM2[OAM2Size].y < 255)
 			//	OAM2[OAM2Size].y++;
 			OAM2Size++;
@@ -830,15 +839,16 @@ public:
 		}
 	}
 
-	void RenderSpritePixel(uint8_t& colorCode, bool& solidSpr)
+	void RenderSpritePixel(uint8_t& colorCode, bool& solidSpr, bool& spritePriority, bool& sprite0Visible)
 	{
+		sprite0Visible = false;
 		if (!(!REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_SPRITES) || (PPU_cycles < 8 && !REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_SPRITES_LEFT))))
 		{
 			uint8_t pos_x = (uint8_t)PPU_cycles, pos_y = (uint8_t)PPU_scanline;
 
 			for (unsigned int i = 0; i < 8; i++)
 			{
-				OAMEntry sprite = OAM2[7 - i];
+				OAMEntry sprite = OAM2[i];
 				if (REG_GET_FLAG(PPU_CTRL, PPU_CTRL_SPRITE_SIZE)) // 8x16
 				{
 					if (pos_x >= sprite.x && pos_y >= sprite.y &&
@@ -873,7 +883,13 @@ public:
 							solidSpr = true;
 							colorCode = GetColorCodeFromPalette(palette, Sprite, paletteIndex);
 							//colorCode = palette;
-						}
+							spritePriority = REG_GET_FLAG(OAM2[i].attributes, OAM_ATTRIBUTES_SPRITE_PRIORITY);
+						}						
+					
+						//if (sprite.sprite0)
+						//	sprite0Visible = true;
+						if(sprite0InScanline && (i == sprite0LocationInOAM2))
+							sprite0Visible = true;
 					}
 				}
 				else // 8x8
@@ -904,7 +920,14 @@ public:
 							solidSpr = true;
 							colorCode = GetColorCodeFromPalette(palette, Sprite, paletteIndex);
 							//colorCode = palette;
+
+							spritePriority = REG_GET_FLAG(OAM2[i].attributes, OAM_ATTRIBUTES_SPRITE_PRIORITY);
 						}
+					
+						//if (sprite.sprite0)
+						//	sprite0Visible = true;
+						if (sprite0InScanline && (i == sprite0LocationInOAM2))
+							sprite0Visible = true;
 					}
 				}
 			}
@@ -913,32 +936,41 @@ public:
 
 	void RenderPixel()
 	{
-		uint8_t colorCode = PPU_readMemory1B(0x3f00);
+		uint8_t colorCode;
+		uint8_t bgColor = PPU_readMemory1B(0x3f00);
+		uint8_t spriteColor = 0xff;
 
-		if (settings.debugBGPalette)
-			colorCode = 0;
+		//if (settings.debugBGPalette)
+		//	colorCode = 0;
 
 		bool solidBG = false, solidSpr = false;
 
-		if (OAM2Size != 0)
+		bool sprite0Visible = false;
+
+		RenderBGPixel(bgColor, solidBG);
+		bool spritePriority = false;//REG_GET_FLAG(OAM2[0].attributes, OAM_ATTRIBUTES_SPRITE_PRIORITY);
+		RenderSpritePixel(spriteColor, solidSpr, spritePriority, sprite0Visible);
+
+		if (spritePriority)
 		{
-			if (REG_GET_FLAG(OAM2[0].attributes, OAM_ATTRIBUTES_SPRITE_PRIORITY))
-			{
-				RenderSpritePixel(colorCode, solidSpr);
-				RenderBGPixel(colorCode, solidBG);
-			}
+			if(solidBG)
+				colorCode = bgColor;
 			else
-			{
-				RenderBGPixel(colorCode, solidBG);
-				RenderSpritePixel(colorCode, solidSpr);
-			}
+				colorCode = spriteColor;
 		}
 		else
-			RenderBGPixel(colorCode, solidBG);
-
-		if (solidBG && solidSpr && PPU_cycles != 255 && !sprite0HitAlreadyHappened)
 		{
-			sprite0HitAlreadyHappened = true;
+			if (spriteColor == 0xff)
+				colorCode = bgColor;
+			else
+				colorCode = spriteColor;
+		}
+
+		//colorCode = spriteColor;
+
+		if (solidBG && solidSpr && sprite0Visible && PPU_cycles != 255/* && !sprite0HitAlreadyHappened*/)
+		{
+			//sprite0HitAlreadyHappened = true;
 			REG_SET_FLAG_1(PPU_STATUS, PPU_STATUS_SPRITE_0_HIT);
 		}
 
@@ -962,7 +994,7 @@ public:
 			color = AttenuateColor(color, attenuateRed, attenuateGreen, attenuateBlue);
 
 		if (settings.emulateDifferentialPhaseDistortion)
-			color = RotateHue(color, 5.f * (colorCode >> 4));
+			color = RotateHue(color, 5.f * luma);
 
 		screen2.setPixel(PPU_cycles, PPU_scanline, color);
 	}
@@ -999,12 +1031,14 @@ public:
 	uint16_t t; // temp VRAM address
 	uint8_t ppuReadBuffer;
 	uint8_t x; // fine x scroll (3 bits)
-	bool sprite0HitAlreadyHappened;
+	//bool sprite0HitAlreadyHappened;
 
 	OAMEntry OAM[64];
 	OAMEntry OAM2[8];
 	uint8_t OAM2Size;
 	uint8_t OAMAddress;
+	bool sprite0InScanline;
+	uint8_t sprite0LocationInOAM2;
 
 	bool controllerLatch1;
 	uint8_t controller1ShiftRegister;

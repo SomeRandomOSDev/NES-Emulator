@@ -23,10 +23,11 @@ int WinMain()
 	"NES Classic (FBX)",
 	"Sony CXA",
 	"PC-10",
-	"Wavebeam"
+	"Wavebeam",
+	"Mesen NTSC"
 	};
 
-	uint8_t paletteIndex = 6;
+	uint8_t paletteIndex = 7;
 
 	std::string paletteName = palettes[paletteIndex];
 	bool paletteLoaded = emu.loadPaletteFromPAL("resources/" + paletteName + ".pal");
@@ -70,7 +71,7 @@ int WinMain()
 	WindowState windowState = Screen;
 
 	emu.settings.debugBGPalette = false;
-	emu.settings.emulateDifferentialPhaseDistortion = true;
+	emu.settings.emulateDifferentialPhaseDistortion = false;
 	emu.settings.printLog = false;
 
 	while(window.isOpen())
@@ -217,11 +218,13 @@ int WinMain()
 		float scrollX = 
 		(LOOPY_GET_COARSE_X(emu.v) * 8 + emu.x + LOOPY_GET_NAMETABLE_X(emu.v) * 256) * nametableSize / 256.f,
 		scrollY = 
-		(LOOPY_GET_COARSE_Y(emu.v) * 8 + LOOPY_GET_FINE_Y(emu.v) + LOOPY_GET_NAMETABLE_Y(emu.v) * 256) * nametableSize / 256.f;
+		(LOOPY_GET_COARSE_Y(emu.v) * 8 + LOOPY_GET_FINE_Y(emu.v) + LOOPY_GET_NAMETABLE_Y(emu.v) * 240) * nametableSize / 240.f;
 
 		switch (windowState)
 		{
 		case CPUDebug:
+			window.setTitle("NES Emulator | CPU Debug");
+
 			registers.setPosition(sf::Vector2f(10, 0));
 			window.draw(registers);
 
@@ -247,6 +250,8 @@ int WinMain()
 			break;
 
 		case Screen:
+			window.setTitle("NES Emulator");
+
 			screen.setOrigin(screenSize / 2.f, screenSize / 2.f);
 			screen.setPosition(sf::Vector2f(ws.x / 2.f, ws.y / 2.f));
 			screenTex.loadFromImage(emu.screen);
@@ -256,6 +261,8 @@ int WinMain()
 			break;
 
 		case PPUDebug_Patterntables:
+			window.setTitle("NES Emulator | PPU Debug | Pattern tables");
+
 			//patternTable.setOrigin(patternTableSize / 2.f, patternTableSize / 2.f);
 			//patternTable.setPosition(sf::Vector2f(ws_ppuDebug_pattern.x / 2.f, ws_ppuDebug_pattern.y / 2.f));
 
@@ -270,6 +277,8 @@ int WinMain()
 			break;
 
 		case PPUDebug:
+			window.setTitle("NES Emulator | PPU Debug");
+
 			rect.setPosition(sf::Vector2f(0, 0));
 			rect.setSize(sf::Vector2f(665, (float)SCREEN.height));
 			window.draw(rect);
@@ -306,6 +315,8 @@ int WinMain()
 			break;
 
 		case PPUDebug_Nametables:
+			window.setTitle("NES Emulator | PPU Debug | Nametables");
+
 			nametableTex.loadFromImage(emu.GetNametable(0));
 			nametable.setTexture(&nametableTex);
 			window.draw(nametable);
@@ -373,6 +384,8 @@ int WinMain()
 			break;
 
 		default:
+			window.setTitle("NES Emulator | Unknown window");
+
 			break;
 		}
 
