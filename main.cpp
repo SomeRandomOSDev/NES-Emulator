@@ -47,9 +47,11 @@ int WinMain()
 
 	updateRegistersText();
 
-	sf::Text memory;
-	memory.setFont(font);
-	memory.setString("00");
+	sf::Text text, line;
+	text.setFont(font);
+	text.setString("00");
+	text.setFont(font);
+	text.setString("00");
 
 	int32_t memoryScroll = 0, ppuMemoryScroll = 0;
 
@@ -69,7 +71,7 @@ int WinMain()
 	window.setVerticalSyncEnabled(false);
 
 	emu.settings.debugBGPalette = false;
-	emu.settings.emulateDifferentialPhaseDistortion = false;
+	emu.settings.emulateDifferentialPhaseDistortion = true;
 	emu.settings.printLog = false;
 
 	while (
@@ -223,14 +225,14 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 
 		for (uint16_t i = 0; i < 24; i++)
 		{
-			memory.setString("$" + HEX_2B((i + memoryScroll) * 8));
-			memory.setPosition(sf::Vector2f(310, i * 40.f));
-			window_cpuDebug.draw(memory);
+			text.setString("$" + HEX_2B((i + memoryScroll) * 8));
+			text.setPosition(sf::Vector2f(310, i * 40.f));
+			window_cpuDebug.draw(text);
 			for (uint16_t j = 0; j < 8; j++)
 			{
-				memory.setString(HEX_1B(emu.CPU_readMemory1B(j + 8 * (i + memoryScroll))));
-				memory.setPosition(sf::Vector2f(310 + j * 60 + 160.f, i * 40.f));
-				window_cpuDebug.draw(memory);
+				text.setString(HEX_1B(emu.CPU_readMemory1B(j + 8 * (i + memoryScroll))));
+				text.setPosition(sf::Vector2f(310 + j * 60 + 160.f, i * 40.f));
+				window_cpuDebug.draw(text);
 			}
 		}
 
@@ -267,16 +269,37 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-		for (uint16_t i = 0; i < 24; i++)
+		memoryRect.setPosition(sf::Vector2f(0, 0));
+		memoryRect.setSize(sf::Vector2f(665, (float)SCREEN.height));
+		window_ppuDebug.draw(memoryRect);
+
+		for (uint8_t i = 0; i < 24; i++)
 		{
-			memory.setString("$" + HEX_2B((i + ppuMemoryScroll) * 8));
-			memory.setPosition(sf::Vector2f(20, 20 + i * 40.f));
-			window_ppuDebug.draw(memory);
-			for (uint16_t j = 0; j < 8; j++)
+			text.setString("$" + HEX_2B((i + ppuMemoryScroll) * 8));
+			text.setPosition(sf::Vector2f(20, 10 + i * 40.f));
+			window_ppuDebug.draw(text);
+			for (uint8_t j = 0; j < 8; j++)
 			{
-				memory.setString(HEX_1B(emu.PPU_readMemory1B(j + 8 * (i + ppuMemoryScroll))));
-				memory.setPosition(sf::Vector2f(20 + j * 60 + 160.f, 20 + i * 40.f));
-				window_ppuDebug.draw(memory);
+				text.setString(HEX_1B(emu.PPU_readMemory1B(j + 8 * (i + ppuMemoryScroll))));
+				text.setPosition(sf::Vector2f(20 + j * 60 + 160.f, 10 + i * 40.f));
+				window_ppuDebug.draw(text);
+			}
+		}
+
+		uint16_t text_y = 10;
+		for (uint8_t i = 0; (text_y - 10) / 40 <= 0x17; i++)
+		{
+			text.setString("Sprite $" + HEX_1B(i) + ": Attributes $" + 
+			HEX_1B(emu.OAM[i].attributes) + " | Position (" +
+			std::to_string(emu.OAM[i].x) + ", " + std::to_string(emu.OAM[i].y) + 
+			")");
+
+			//text.setPosition(675, 10 + i * 40.f);
+			text.setPosition(675, text_y);
+			if(!(emu.OAM[i].y >= 240))
+			{
+				text_y += 40;
+				window_ppuDebug.draw(text);
 			}
 		}
 

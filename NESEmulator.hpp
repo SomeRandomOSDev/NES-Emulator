@@ -534,37 +534,25 @@ public:
 		return (((uint16_t)hi << 8) | lo);
 	}
 
-	uint8_t readIndexedIndirectX(uint8_t d)
-	{
-		return CPU_readMemory1B(CPU_readMemory1B((d + X) % 256) + (CPU_readMemory1B((d + X + 1) % 256) * 256));
-	}
-
-	uint8_t readIndirectIndexedY(uint8_t d, bool& pageBoundaryCrossed)
-	{
-		uint16_t lo = CPU_readMemory1B(d);
-		pageBoundaryCrossed = lo > 0xff;
-		return CPU_readMemory1B(lo + (CPU_readMemory1B((d + 1) % 256) * 256) + Y);
-	}
-
 	uint8_t zeropageIndexedXAddress(uint8_t d)
 	{
-		return (d + X) % 256;
+		return d + X;
 	}
 
 	uint8_t zeropageIndexedYAddress(uint8_t d)
 	{
-		return (d + Y) % 256;
+		return d + Y;
 	}
 
 	uint16_t absoluteIndexedXAddress(uint16_t a, bool pageBoundaryCrossed)
 	{
-		pageBoundaryCrossed = ((a >> 8) == ((a + Y) >> 8));
+		pageBoundaryCrossed = ((a >> 8) != ((a + Y) >> 8));
 		return a + X;
 	}
 
 	uint16_t absoluteIndexedYAddress(uint16_t a, bool pageBoundaryCrossed)
 	{
-		pageBoundaryCrossed = ((a >> 8) == ((a + Y) >> 8));
+		pageBoundaryCrossed = ((a >> 8) != ((a + Y) >> 8));
 		return a + Y;
 	}
 
@@ -578,6 +566,18 @@ public:
 		uint16_t lo = CPU_readMemory1B(d);
 		/*pageBoundaryCrossed = lo > 0xff;*/
 		return lo + (CPU_readMemory1B((d + 1) % 256) * 256) + Y;
+	}
+
+	uint8_t readIndexedIndirectX(uint8_t d)
+	{
+		return CPU_readMemory1B(CPU_readMemory1B((d + X) % 256) + (CPU_readMemory1B((d + X + 1) % 256) * 256));
+	}
+
+	uint8_t readIndirectIndexedY(uint8_t d, bool& pageBoundaryCrossed)
+	{
+		uint16_t lo = CPU_readMemory1B(d);
+		pageBoundaryCrossed = lo > 0xff;
+		return CPU_readMemory1B(lo + (CPU_readMemory1B((d + 1) % 256) * 256) + Y);
 	}
 
 	inline sf::Color NESColorToRGB(uint8_t colorCode)
@@ -729,13 +729,13 @@ public:
 
 			uint8_t bgTile = PPU_readMemory1B(0x2000 | (v & 0x0fff));
 
-			//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(v & 0x0fff));
+			//colorCode = v & 0x0fff;
 			//return;
 
-			//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(LOOPY_GET_NAMETABLE(v) + 0x20));
+			//colorCode = (LOOPY_GET_NAMETABLE(v) + 0x22);
 			//return;
 
-			//screen2.setPixel(PPU_cycles, PPU_scanline, NESColorToRGB(tileX | (tileY << 5)));
+			//colorCode = (tileX | (tileY << 5));
 			//return;
 
 			bool patternTable = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_BG_PATTERN_TABLE_ADDRESS);

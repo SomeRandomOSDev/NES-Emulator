@@ -146,7 +146,7 @@ std::string NESEmulator::CPU_cycle()
 		uint8_t arg8 = CPU_readMemory1B(PC + 1);
 		uint16_t arg16 = CPU_readMemory2B(PC + 1);
 		uint16_t tmp16;
-		uint8_t tmp8;
+		uint8_t tmp8, tmp8_2;
 		bool tmp1;
 		uint8_t PCPage = ((PC + 2) >> 8);
 		bool pageBoundaryCrossed = false;
@@ -386,13 +386,15 @@ std::string NESEmulator::CPU_cycle()
 		case 0x1e: // ASL absolute, X
 			str += "ASL $" + HEX(arg16) + ", X";
 
-			tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
+			tmp16 = absoluteIndexedXAddress(arg16, pageBoundaryCrossed);
+
+			tmp8 = CPU_readMemory1B(tmp16);
 
 			SET_FLAG(FLAG_C, tmp8 >> 7);
 
 			tmp8 <<= 1;
 
-			CPU_writeMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed), tmp8);
+			CPU_writeMemory1B(tmp16, tmp8);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -611,7 +613,8 @@ std::string NESEmulator::CPU_cycle()
 		case 0x36: // ROL zeropage, X
 			str += "ROL $" + HEX(arg8) + ", X";
 
-			tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
+			tmp16 = zeropageIndexedXAddress(arg8);
+			tmp8 = CPU_readMemory1B(tmp16);
 
 			tmp1 = GET_FLAG(FLAG_C);
 
@@ -619,7 +622,7 @@ std::string NESEmulator::CPU_cycle()
 			tmp8 <<= 1;
 			tmp8 |= (uint8_t)tmp1;
 
-			CPU_writeMemory1B(zeropageIndexedXAddress(arg8), tmp8);
+			CPU_writeMemory1B(tmp16, tmp8);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -668,7 +671,8 @@ std::string NESEmulator::CPU_cycle()
 		case 0x3e: // ROL absolute, X
 			str += "ROL $" + HEX(arg16) + ", X";
 
-			tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
+			tmp16 = absoluteIndexedXAddress(arg16, pageBoundaryCrossed);
+			tmp8 = CPU_readMemory1B(tmp16);
 
 			tmp1 = GET_FLAG(FLAG_C);
 
@@ -676,7 +680,7 @@ std::string NESEmulator::CPU_cycle()
 			tmp8 <<= 1;
 			tmp8 |= (uint8_t)tmp1;
 
-			CPU_writeMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed), tmp8);
+			CPU_writeMemory1B(tmp16, tmp8);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -797,8 +801,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0x4d: // EOR absolute
 			str += "EOR $" + HEX(arg16);
 
-			tmp8 = CPU_readMemory1B(arg16);
-			A ^= tmp8;
+			A ^= CPU_readMemory1B(arg16);
 
 			SET_FLAG(FLAG_N, (A >> 7));
 			SET_FLAG(FLAG_Z, (A == 0));
@@ -1387,7 +1390,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0x94: // STY zeropage, X
 			str += "STY $" + HEX(arg8) + ", X";
 
-			CPU_writeMemory1B(zeropageIndexedXAddress(arg8), X);
+			CPU_writeMemory1B(zeropageIndexedXAddress(arg8), Y);
 
 			CPU_cycles = 4;
 			PC += 2;
@@ -1689,7 +1692,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0xb8: // CLV
 			str += "CLV";
 
-			SET_FLAG_1(FLAG_V);
+			SET_FLAG_0(FLAG_V);
 
 			CPU_cycles = 2;
 			PC++;
@@ -1779,9 +1782,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xc1: // CMP (indirect, X)
 			str += "CMP ($" + HEX(arg8) + ", X)";
 
-			tmp8 = A - readIndexedIndirectX(arg8);
+			tmp8_2 = readIndexedIndirectX(arg8);
 
-			SET_FLAG(FLAG_C, A >= readIndexedIndirectX(arg8));
+			tmp8 = A - tmp8_2;
+
+			SET_FLAG(FLAG_C, A >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -1794,9 +1799,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xc4: // CPY zeropage
 			str += "CPY $" + HEX(arg8);
 
-			tmp8 = Y - CPU_readMemory1B(arg8);
+			tmp8_2 = CPU_readMemory1B(arg8);
 
-			SET_FLAG(FLAG_C, Y >= CPU_readMemory1B(arg8));
+			tmp8 = Y - tmp8_2;
+
+			SET_FLAG(FLAG_C, Y >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -1809,9 +1816,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xc5: // CMP zeropage
 			str += "CMP $" + HEX(arg8);
 
-			tmp8 = A - CPU_readMemory1B(arg8);
+			tmp8_2 = CPU_readMemory1B(arg8);
 
-			SET_FLAG(FLAG_C, A >= CPU_readMemory1B(arg8));
+			tmp8 = A - tmp8_2;
+
+			SET_FLAG(FLAG_C, A >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -1879,9 +1888,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xcc: // CPY absolute
 			str += "CPY $" + HEX(arg16);
 
-			tmp8 = Y - CPU_readMemory1B(arg16);
+			tmp8_2 = CPU_readMemory1B(arg16);
 
-			SET_FLAG(FLAG_C, Y >= CPU_readMemory1B(arg16));
+			tmp8 = Y - tmp8_2;
+
+			SET_FLAG(FLAG_C, Y >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -1894,9 +1905,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xcd: // CMP absolute
 			str += "CMP $" + HEX(arg16);
 
-			tmp8 = A - CPU_readMemory1B(arg16);
+			tmp8_2 = CPU_readMemory1B(arg16);
 
-			SET_FLAG(FLAG_C, A >= CPU_readMemory1B(arg16));
+			tmp8 = A - tmp8_2;
+
+			SET_FLAG(FLAG_C, A >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -1941,9 +1954,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xd1: // CMP (indirect), Y
 			str += "CMP ($" + HEX(arg8) + "), Y";
 
-			tmp8 = A - readIndirectIndexedY(arg8, pageBoundaryCrossed);
+			tmp8_2 = readIndirectIndexedY(arg8, pageBoundaryCrossed);
 
-			SET_FLAG(FLAG_C, A >= readIndirectIndexedY(arg8, pageBoundaryCrossed));
+			tmp8 = A - tmp8_2;
+
+			SET_FLAG(FLAG_C, A >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -1956,9 +1971,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xd5: // CMP zeropage, X
 			str += "CMP $" + HEX(arg8) + ", X";
 
-			tmp8 = A - CPU_readMemory1B(zeropageIndexedXAddress(arg8));
+			tmp8_2 = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
 
-			SET_FLAG(FLAG_C, A >= CPU_readMemory1B(zeropageIndexedXAddress(arg8)));
+			tmp8 = A - tmp8_2;
+
+			SET_FLAG(FLAG_C, A >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -1971,8 +1988,9 @@ std::string NESEmulator::CPU_cycle()
 		case 0xd6: // DEC zeropage, X
 			str += "DEC $" + HEX(arg8) + ", X";
 
-			tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8)) - 1;
-			CPU_writeMemory1B(zeropageIndexedXAddress(arg8), tmp8);
+			tmp16 = zeropageIndexedXAddress(arg8);
+			tmp8 = CPU_readMemory1B(tmp16) - 1;
+			CPU_writeMemory1B(tmp16, tmp8);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -1995,9 +2013,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xd9: // CMP absolute, Y
 			str += "CMP $" + HEX(arg16) + ", Y";
 
-			tmp8 = A - CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
+			tmp8_2 = CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
 
-			SET_FLAG(FLAG_C, A >= CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed)));
+			tmp8 = A - tmp8_2;
+
+			SET_FLAG(FLAG_C, A >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -2010,9 +2030,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xdd: // CMP absolute, X
 			str += "CMP $" + HEX(arg16) + ", X";
 
-			tmp8 = A - CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
+			tmp8_2 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
 
-			SET_FLAG(FLAG_C, A >= CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed)));
+			tmp8 = A - tmp8_2;
+
+			SET_FLAG(FLAG_C, A >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -2071,9 +2093,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xe4: // CPX zeropage
 			str += "CPX $" + HEX(arg8);
 
-			tmp8 = X - CPU_readMemory1B(arg8);
+			tmp8_2 = CPU_readMemory1B(arg8);
 
-			SET_FLAG(FLAG_C, X >= CPU_readMemory1B(arg8));
+			tmp8 = X - tmp8_2;
+
+			SET_FLAG(FLAG_C, X >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
@@ -2130,8 +2154,8 @@ std::string NESEmulator::CPU_cycle()
 		case 0xe9: // SBC imm8
 			str += "SBC #$" + HEX(arg8);
 
-			tmp16 = (uint16_t)A - (uint16_t)arg8 - (1 - (uint16_t)GET_FLAG(FLAG_C));
-			A = (uint8_t)tmp16;
+			tmp16 = (uint16_t)A - (uint16_t)arg8 - (1 - GET_FLAG(FLAG_C));
+			A = (uint8_t)(/*(int16_t)*/tmp16);
 
 			SET_FLAG(FLAG_C, (tmp16 > 0xff));
 			SET_FLAG(FLAG_V, ((A ^ tmp16) & (tmp16 ^ arg8) & 0x80));
@@ -2153,9 +2177,11 @@ std::string NESEmulator::CPU_cycle()
 		case 0xec: // CPX absolute
 			str += "CPX $" + HEX(arg16);
 
-			tmp8 = X - CPU_readMemory1B(arg16);
+			tmp8_2 = CPU_readMemory1B(arg16);
 
-			SET_FLAG(FLAG_C, X >= CPU_readMemory1B(arg16));
+			tmp8 = X - tmp8_2;
+
+			SET_FLAG(FLAG_C, X >= tmp8_2);
 
 			SET_FLAG(FLAG_N, (tmp8 >> 7));
 			SET_FLAG(FLAG_Z, (tmp8 == 0));
