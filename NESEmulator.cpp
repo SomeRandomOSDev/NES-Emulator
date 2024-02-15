@@ -1066,7 +1066,7 @@ std::string NESEmulator::CPU_cycle()
 
 			break;
 
-		case 0x6c: // JMP indirect
+		case 0x6c: // JMP (indirect)
 			str += "JMP ($" + HEX(arg16) + ")";
 
 			CPU_cycles = 5;

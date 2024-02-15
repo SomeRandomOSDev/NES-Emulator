@@ -546,7 +546,7 @@ public:
 
 	uint16_t absoluteIndexedXAddress(uint16_t a, bool pageBoundaryCrossed)
 	{
-		pageBoundaryCrossed = ((a >> 8) != ((a + Y) >> 8));
+		pageBoundaryCrossed = ((a >> 8) != ((a + X) >> 8));
 		return a + X;
 	}
 
@@ -556,28 +556,29 @@ public:
 		return a + Y;
 	}
 
-	uint16_t indexedIndirectXAddress(uint16_t d)
+	uint16_t indexedIndirectXAddress(uint8_t d)
 	{
-		return CPU_readMemory1B((d + X) % 256) + (CPU_readMemory1B((d + X + 1) % 256) * 256);
+		return CPU_readMemory1B((d + X) & 0xff) + ((uint16_t)CPU_readMemory1B((d + X + 1) & 0xff) << 8);
 	}
 
 	uint16_t indirectIndexedYAddress(uint8_t d)
 	{
-		uint16_t lo = CPU_readMemory1B(d);
-		/*pageBoundaryCrossed = lo > 0xff;*/
-		return lo + (CPU_readMemory1B((d + 1) % 256) * 256) + Y;
+		/*uint16_t lo = CPU_readMemory1B(d) + Y;
+		pageBoundaryCrossed = lo > 0xff;
+		return lo + (CPU_readMemory1B((d + 1) % 256) * 256);*/
+		return CPU_readMemory1B(d) + Y + ((uint16_t)CPU_readMemory1B((d + 1) & 0xff) << 8);
 	}
 
 	uint8_t readIndexedIndirectX(uint8_t d)
 	{
-		return CPU_readMemory1B(CPU_readMemory1B((d + X) % 256) + (CPU_readMemory1B((d + X + 1) % 256) * 256));
+		return CPU_readMemory1B(indexedIndirectXAddress(d));
 	}
 
 	uint8_t readIndirectIndexedY(uint8_t d, bool& pageBoundaryCrossed)
 	{
 		uint16_t lo = CPU_readMemory1B(d);
 		pageBoundaryCrossed = lo > 0xff;
-		return CPU_readMemory1B(lo + (CPU_readMemory1B((d + 1) % 256) * 256) + Y);
+		return CPU_readMemory1B(lo + ((uint16_t)CPU_readMemory1B((d + 1) % 256) << 8) + Y);
 	}
 
 	inline sf::Color NESColorToRGB(uint8_t colorCode)
@@ -650,9 +651,77 @@ public:
 		return img;
 	}
 
+	sf::Image GetNametable(uint8_t nb)
+	{
+		sf::Image img;
+		img.create(256, 240);
+		for (unsigned int i = 0; i < 30; i++)
+		{
+			for (unsigned int j = 0; j < 32; j++)
+			{
+				for (unsigned int k = 0; k < 8; k++)
+				{
+					for (unsigned int l = 0; l < 8; l++)
+					{
+						uint8_t pix_x = j * 8 + l, pix_y = i * 8 + k;
+
+						uint8_t palette = 0;
+						uint8_t paletteIndex = 0;
+						uint16_t nametableBase = NametableGetBase(nb);
+						bool patternTableHalf = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_BG_PATTERN_TABLE_ADDRESS);
+						uint8_t tile = NametableGetTile(j, i, nametableBase);
+
+						uint8_t row_lo = GetRowFromTile(0, patternTableHalf, tile, k);
+						uint8_t row_hi = GetRowFromTile(1, patternTableHalf, tile, k);
+
+						uint8_t paletteIndex_hi = REG_GET_FLAG(row_hi, 7 - l),
+								paletteIndex_lo = REG_GET_FLAG(row_lo, 7 - l);
+
+						uint8_t attributeTileX = pix_x / 32, attributeTileY = pix_y / 32;
+						uint8_t smallAttributeTileX = pix_x / 16, smallAttributeTileY = pix_y / 16;
+
+						uint8_t attributeByte = PPU_readMemory1B(nametableBase + 0x3c0 + attributeTileY * 8 + attributeTileX);
+
+						uint8_t palette_bottomRight = (attributeByte >> 6),
+								palette_bottomLeft = (attributeByte >> 4) & 0b11,
+								palette_topRight = (attributeByte >> 2) & 0b11,
+								palette_topLeft = attributeByte & 0b11;
+
+						if (smallAttributeTileY & 1)
+						{
+							if (smallAttributeTileX & 1)
+								palette = palette_bottomRight;
+							else
+								palette = palette_bottomLeft;
+						}
+						else
+						{
+							if (smallAttributeTileX & 1)
+								palette = palette_topRight;
+							else
+								palette = palette_topLeft;
+						}
+
+						paletteIndex = (paletteIndex_hi << 1) | paletteIndex_lo;
+						if (paletteIndex == 0)
+							img.setPixel(pix_x, pix_y, NESColorToRGB(PPU_readMemory1B(0x3f00)));
+						else
+							img.setPixel(pix_x, pix_y, GetColorFromPalette(palette, Background, paletteIndex));
+					}
+				}
+			}
+		}
+		return img;
+	}
+
 	uint8_t NametableGetTile(uint8_t tileX, uint8_t tileY, uint16_t nametableBase)
 	{
 		return PPU_readMemory1B(nametableBase + tileY * 32 + tileX);
+	}
+
+	uint16_t NametableGetBase(uint8_t nametable)
+	{
+		return 0x2000 + 0x400 * nametable;
 	}
 
 	sf::Color AttenuateColor(sf::Color color, bool Red, bool Green, bool Blue)
@@ -707,9 +776,9 @@ public:
 				PPU_readMemory1B(0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07));
 
 			uint8_t palette_bottomRight = (attributeByte >> 6),
-				palette_bottomLeft = (attributeByte >> 4) & 0b11,
-				palette_topRight = (attributeByte >> 2) & 0b11,
-				palette_topLeft = attributeByte & 0b11;
+					palette_bottomLeft = (attributeByte >> 4) & 0b11,
+					palette_topRight = (attributeByte >> 2) & 0b11,
+					palette_topLeft = attributeByte & 0b11;
 
 			uint8_t palette;
 			if (smallAttributeTileY & 1)

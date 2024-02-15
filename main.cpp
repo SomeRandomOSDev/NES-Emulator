@@ -62,28 +62,31 @@ int WinMain()
 
 	uint8_t displayPalette = 0;
 
-	sf::RenderWindow window, window_cpuDebug, window_ppuDebug_pattern, window_ppuDebug;
+	sf::RenderWindow window_screen, window_cpuDebug, window_ppuDebug, 
+		window_ppuDebug_pattern, window_ppuDebug_nametables;
 	window_cpuDebug.create(sf::VideoMode(800, 550), "NES Emulator | CPU Debug");
 	window_ppuDebug.create(sf::VideoMode(800, 550), "NES Emulator | PPU Debug");
 	window_ppuDebug_pattern.create(sf::VideoMode(800, 550), "NES Emulator | PPU Debug | Pattern Tables");
-	window.create(sf::VideoMode(800, 550), "NES Emulator");
-	window.setFramerateLimit((int)60.1);
-	window.setVerticalSyncEnabled(false);
+	window_ppuDebug_nametables.create(sf::VideoMode(800, 550), "NES Emulator | PPU Debug | Nametables");
+	window_screen.create(sf::VideoMode(800, 550), "NES Emulator");
+	window_screen.setFramerateLimit((int)60.1);
+	window_screen.setVerticalSyncEnabled(false);
 
 	emu.settings.debugBGPalette = false;
 	emu.settings.emulateDifferentialPhaseDistortion = true;
 	emu.settings.printLog = false;
 
 	while (
-window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && window_ppuDebug_pattern.isOpen())
+window_screen.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() 
+&& window_ppuDebug_pattern.isOpen() && window_ppuDebug_nametables.isOpen())
 	{
 		sf::Event event;
-		while (window.pollEvent(event))
+		while (window_screen.pollEvent(event))
 		{
 			if (event.type == sf::Event::Closed)
-				window.close();
+				window_screen.close();
 			if (event.type == sf::Event::Resized)
-				window.setView(sf::View(sf::FloatRect(0, 0, (float)event.size.width, (float)event.size.height)));
+				window_screen.setView(sf::View(sf::FloatRect(0, 0, (float)event.size.width, (float)event.size.height)));
 		}
 		while (window_cpuDebug.pollEvent(event))
 		{
@@ -119,6 +122,13 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 				else
 					ppuMemoryScroll -= event.mouseWheel.delta;
 			}
+		}
+		while (window_ppuDebug_nametables.pollEvent(event))
+		{
+			if (event.type == sf::Event::Closed)
+				window_ppuDebug_nametables.close();
+			if (event.type == sf::Event::Resized)
+				window_ppuDebug_nametables.setView(sf::View(sf::FloatRect(0, 0, (float)event.size.width, (float)event.size.height)));
 		}
 
 		memoryScroll =    std::max(0, std::min((int)memoryScroll,    0x10000 / 8 - 24));
@@ -203,15 +213,17 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 			emu.logLines--;
 		}
 
-		sf::Vector2f ws = (sf::Vector2f)window.getSize(),
+		sf::Vector2f ws = (sf::Vector2f)window_screen.getSize(),
 					 ws_cpuDebug = (sf::Vector2f)window_cpuDebug.getSize(),
 					 ws_ppuDebug_pattern = (sf::Vector2f)window_ppuDebug_pattern.getSize(),
-					 ws_ppuDebug = (sf::Vector2f)window_ppuDebug.getSize();
+					 ws_ppuDebug = (sf::Vector2f)window_ppuDebug.getSize(),
+					 ws_ppuDebug_nametables = (sf::Vector2f)window_ppuDebug_nametables.getSize();
 
-		window.clear(sf::Color(128, 128, 128));
+		window_screen.clear(sf::Color(128, 128, 128));
 		window_cpuDebug.clear(sf::Color(128, 128, 128));
 		window_ppuDebug.clear(sf::Color(128, 128, 128));
 		window_ppuDebug_pattern.clear(sf::Color(128, 128, 128));
+		window_ppuDebug_nametables.clear(sf::Color(128, 128, 128));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -249,7 +261,7 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 		sf::Texture screenTex;
 		screenTex.loadFromImage(emu.screen);
 		screen.setTexture(&screenTex);
-		window.draw(screen);
+		window_screen.draw(screen);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -303,12 +315,38 @@ window.isOpen() && window_cpuDebug.isOpen() && window_ppuDebug.isOpen() && windo
 			}
 		}
 
+	////////////////////////////////////////////////////////////////////////////////////////////////
+
+		float nametableSize = std::min(ws_ppuDebug_nametables.x, ws_ppuDebug_nametables.y) / 2.f;
+
+		sf::RectangleShape nametable(sf::Vector2f(nametableSize, nametableSize));
+		sf::Texture nametableTex;
+		nametableTex.loadFromImage(emu.GetNametable(0));
+		nametable.setTexture(&nametableTex);
+		window_ppuDebug_nametables.draw(nametable);
+
+		nametable.setPosition(nametableSize, 0);
+		nametableTex.loadFromImage(emu.GetNametable(1));
+		nametable.setTexture(&nametableTex);
+		window_ppuDebug_nametables.draw(nametable);
+
+		nametable.setPosition(0, nametableSize);
+		nametableTex.loadFromImage(emu.GetNametable(2));
+		nametable.setTexture(&nametableTex);
+		window_ppuDebug_nametables.draw(nametable);
+
+		nametable.setPosition(nametableSize, nametableSize);
+		nametableTex.loadFromImage(emu.GetNametable(3));
+		nametable.setTexture(&nametableTex);
+		window_ppuDebug_nametables.draw(nametable);
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-		window.display();
+		window_screen.display();
 		window_cpuDebug.display();
 		window_ppuDebug.display();
 		window_ppuDebug_pattern.display();
+		window_ppuDebug_nametables.display();
 	}
 
 	return 0;
