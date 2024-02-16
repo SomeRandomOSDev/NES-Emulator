@@ -572,11 +572,6 @@ public:
 		return CPU_readMemory1B(d) + Y + ((uint16_t)CPU_readMemory1B((d + 1) & 0xff) << 8);
 	}
 
-	uint8_t readIndexedIndirectX(uint8_t d)
-	{
-		return CPU_readMemory1B(indexedIndirectXAddress(d));
-	}
-
 	uint8_t readIndirectIndexedY(uint8_t d, bool& pageBoundaryCrossed)
 	{
 		uint16_t lo = CPU_readMemory1B(d);

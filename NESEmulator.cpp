@@ -169,7 +169,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0x01: // ORA (indirect, X)
 			str += "ORA ($" + HEX(arg8) + ", X)";
 
-			tmp8 = readIndexedIndirectX(arg8);
+			tmp8 = CPU_readMemory1B(indexedIndirectXAddress(arg8));
 
 			A |= tmp8;
 
@@ -420,7 +420,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0x21: // AND (indirect, X)
 			str += "AND ($" + HEX(arg8) + ", X)";
 
-			A &= readIndexedIndirectX(arg8);
+			A &= CPU_readMemory1B(indexedIndirectXAddress(arg8));
 
 			SET_FLAG(FLAG_N, (A >> 7));
 			SET_FLAG(FLAG_Z, (A == 0));
@@ -708,7 +708,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0x41: // EOR (indirect, X)
 			str += "EOR ($" + HEX(arg8) + ", X)";
 
-			tmp8 = readIndexedIndirectX(arg8);
+			tmp8 = CPU_readMemory1B(indexedIndirectXAddress(arg8));
 			A ^= tmp8;
 
 			SET_FLAG(FLAG_N, (A >> 7));
@@ -966,7 +966,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0x61: // ADC (indirect, X)
 			str += "ADC ($" + HEX(arg8) + ", X)";
 
-			tmp8 = readIndexedIndirectX(arg8);
+			tmp8 = CPU_readMemory1B(indexedIndirectXAddress(arg8));
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
 			A = (uint8_t)tmp16;
 
@@ -1481,7 +1481,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0xa1: // LDA (indirect, X)
 			str += "LDA ($" + HEX(arg8) + ", X)";
 
-			A = readIndexedIndirectX(arg8);
+			A = CPU_readMemory1B(indexedIndirectXAddress(arg8));
 
 			SET_FLAG(FLAG_N, (A >> 7));
 			SET_FLAG(FLAG_Z, (A == 0));
@@ -1784,7 +1784,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0xc1: // CMP (indirect, X)
 			str += "CMP ($" + HEX(arg8) + ", X)";
 
-			tmp8_2 = readIndexedIndirectX(arg8);
+			tmp8_2 = CPU_readMemory1B(indexedIndirectXAddress(arg8));
 
 			tmp8 = A - tmp8_2;
 
@@ -2078,7 +2078,7 @@ std::string NESEmulator::CPU_cycle()
 		case 0xe1: // SBC (indirect, X)
 			str += "SBC ($" + HEX(arg8) + ", X)";
 
-			tmp8 = ~readIndexedIndirectX(arg8);
+			tmp8 = ~CPU_readMemory1B(indexedIndirectXAddress(arg8));
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
 			A = (uint8_t)tmp16;
 

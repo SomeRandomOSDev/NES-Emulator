@@ -148,6 +148,7 @@ int WinMain()
 		if (fDown == 1 || running)
 		{
 			while(!emu.frameFinished)
+			//for (uint32_t i = 0; i < 5369318; i++)
 				emu.cycle();
 
 			emu.frameFinished = false;
