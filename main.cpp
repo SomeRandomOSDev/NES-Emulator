@@ -1,12 +1,19 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <iostream>
+#include <Windows.h>
 
 #include "NESEmulator.hpp"
+#include "APUStream.hpp"
 
 sf::VideoMode SCREEN = sf::VideoMode::getDesktopMode();
 
 //int main(int argc, char** argv)
-int WinMain()
+int WinMain(
+	HINSTANCE instance, 
+	HINSTANCE prevInstance,
+	LPSTR     cmd,
+	int       showCmd)
 {
 	if (__argc != 1 + 1)
 		return 1;
@@ -43,7 +50,6 @@ int WinMain()
 	registers.setString("");
 	sf::Text instructions;
 	instructions.setFont(font);
-
 	instructions.setPosition(sf::Vector2f(1020, 0));
 
 	updateRegistersText();
@@ -73,6 +79,25 @@ int WinMain()
 	emu.settings.debugBGPalette = false;
 	emu.settings.emulateDifferentialPhaseDistortion = false;
 	emu.settings.printLog = false;
+	emu.settings.blockImpossibleInputs = true;
+
+	//sf::SoundBuffer sb;
+	//std::vector<sf::Int16> samples;
+	//sf::Sound sound;
+
+	//samples.clear();
+	//for (uint32_t i = 0; i < 44100; i++)
+	//{
+	//	samples.push_back(SquareWave(i, 350, 0.5f, 35, 0.5f));
+	//}
+
+	//sb.loadFromSamples(&samples[0], samples.size(), 1, 44100);
+	//sound.setBuffer(sb);
+	//sound.play();
+
+	//APUStream apu;
+	//apu.frequency = 440;
+	////apu.play();
 
 	while(window.isOpen())
 	{
@@ -126,6 +151,11 @@ int WinMain()
 
 		windowState = WindowState(int(windowState) + (wDown == 1));
 		windowState = WindowState(int(windowState) % 5);
+
+		//if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+		//	apu.frequency -= 100 / 60.f;
+		//if (sf::Keyboard::isKeyPressed(sf::Keyboard::E))
+		//	apu.frequency += 100 / 60.f;
 
 		if (lDown == 1)
 		{

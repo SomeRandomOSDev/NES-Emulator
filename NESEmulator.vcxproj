@@ -132,15 +132,18 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>C:\Users\PC\Desktop\C++\lib\SFML-2.5.1\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>sfml-graphics.lib;sfml-window.lib;sfml-system.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>sfml-audio.lib;sfml-graphics.lib;sfml-window.lib;sfml-system.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="APUStream.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NESEmulator.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="APUStream.hpp" />
+    <ClInclude Include="audio.hpp" />
     <ClInclude Include="NESEmulator.hpp" />
   </ItemGroup>
   <ItemGroup>

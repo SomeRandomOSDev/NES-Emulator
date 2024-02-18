@@ -33,26 +33,16 @@ void NESEmulator::INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_
 
 void NESEmulator::cycle()
 {
-	if (controllerLatch1)
-	{
-		for (unsigned int i = 0; i < 8; i++)
-		{
-			controller1ShiftRegister &= ~(1 << i);
-			controller1ShiftRegister |= ((sf::Keyboard::isKeyPressed(keyMap[7 - i])) << i);
-		}
-	}
+	HandleInput();
 
 	PPU_cycle();
 
-	if (cycleCounter == 0)
+	if ((totalPPUCycles % 3) == 0)
 	{
 		std::string instructionLog = CPU_cycle();
 		if (instructionLog != "" && settings.printLog)
 			LOG_ADD_LINE(instructionLog);
 	}
-
-	cycleCounter++;
-	cycleCounter %= 3;
 }
 
 void NESEmulator::PPU_cycle()
@@ -63,6 +53,8 @@ void NESEmulator::PPU_cycle()
 		{
 			LOOPY_SET_COARSE_X(v, LOOPY_GET_COARSE_X(t));
 			LOOPY_SET_NAMETABLE_X(v, LOOPY_GET_NAMETABLE_X(t));
+			v_2 = v;
+			x_2 = x;
 		}
 		if (PPU_cycles >= 280 && PPU_cycles <= 304 && PPU_scanline == 261) // 280 - 304
 		{
@@ -70,57 +62,50 @@ void NESEmulator::PPU_cycle()
 			LOOPY_SET_FINE_Y(v, LOOPY_GET_FINE_Y(t));
 			LOOPY_SET_NAMETABLE_Y(v, LOOPY_GET_NAMETABLE_Y(t));
 			//v = t;
+			v_2 = v;
 		}
+
+		if (PPU_cycles == 256)
+			PPU_Y_increment();
 	}
 
-	if (PPU_cycles == 256)
-		PPU_Y_increment();
-
-	if (PPU_cycles < 256 && PPU_scanline < 240)
+	if (PPU_cycles == 0) // Wrong sprite evaluation
 	{
-		if (PPU_cycles == 0) // Wrong sprite evaluation
+		for (uint8_t i = 0; i < 32; i++)
+			*OAM2GetByte(i) = 0xff;
+		OAM2Size = 0;
+		sprite0InScanline = false;
+		for (unsigned int i = 0; i < 64; i++)
 		{
-			for (uint8_t i = 0; i < 32; i++)
-				*OAM2GetByte(i) = 0xff;
-			OAM2Size = 0;
-			sprite0InScanline = false;
-			for (unsigned int i = 0; i < 64; i++)
+			uint8_t entry = 63 - i;
+			if (REG_GET_FLAG(PPU_CTRL, PPU_CTRL_SPRITE_SIZE)) // 8x16
 			{
-				uint8_t entry = 63 - i;
-				if (REG_GET_FLAG(PPU_CTRL, PPU_CTRL_SPRITE_SIZE)) // 8x16
-				{
-					if (PPU_scanline >= OAM[entry].y && PPU_scanline < (OAM[entry].y + 16))
-						copyOAMEntryToOAM2(entry);
-				}
-				else // 8x8
-				{
-					if (PPU_scanline >= OAM[entry].y && PPU_scanline < (OAM[entry].y + 8))
-						copyOAMEntryToOAM2(entry);
-				}
+				if (PPU_scanline >= OAM[entry].y && PPU_scanline < (OAM[entry].y + 16))
+					copyOAMEntryToOAM2(entry);
+			}
+			else // 8x8
+			{
+				if (PPU_scanline >= OAM[entry].y && PPU_scanline < (OAM[entry].y + 8))
+					copyOAMEntryToOAM2(entry);
 			}
 		}
-
-		RenderPixel();
-
-		x++;
-		x %= 8;
-
-		if (x == 0)
-			PPU_coarse_X_increment();
 	}
+
+	if (PPU_cycles < 256 && PPU_scanline < 240)
+		RenderPixel();
 
 	if (PPU_scanline == 241 && PPU_cycles == 1)
 	{
 		REG_SET_FLAG_1(PPU_STATUS, PPU_STATUS_VBLANK);
-		if(!stopCPU)
+		if (!stopCPU)
 			NMI();
 	}
+
 	if (PPU_scanline == 261 && PPU_cycles == 1)
 	{
 		REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_VBLANK);
 		REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_SPRITE_0_HIT);
 		REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_SPRITE_OVERFLOW);
-		//sprite0HitAlreadyHappened = false;
 	}
 
 	PPU_cycles++;
@@ -135,6 +120,8 @@ void NESEmulator::PPU_cycle()
 			frameFinished = true;
 		}
 	}
+
+	totalPPUCycles++;
 }
 
 std::string NESEmulator::CPU_cycle()

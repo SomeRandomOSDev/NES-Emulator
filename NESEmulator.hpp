@@ -9,7 +9,7 @@
 
 #include "util.hpp"
 
-class NESEmulator // NTSC NES with RP2A03/2C02G
+class NESEmulator // NTSC NES with RP2A03/RP2C02G
 {
 public:
 	NESEmulator()
@@ -32,16 +32,19 @@ public:
 		S = 0xfd;
 		CPU_writeMemory1B(0x4017, 0);
 		CPU_writeMemory1B(0x4015, 0);
-		for (uint16_t i = 0x4000; i < 0x400f; i++)
+		for (uint16_t i = 0x4000; i <= 0x400f; i++)
 			CPU_writeMemory1B(i, 0);
-		for (uint16_t i = 0x4010; i < 0x4013; i++)
+		for (uint16_t i = 0x4010; i <= 0x4013; i++)
 			CPU_writeMemory1B(i, 0);
+
+		for (uint16_t i = 0x000; i < 0x800; i++)
+			CPU_writeMemory1B(i, randomByte(re));
 
 		CPU_cycles = 0;
-		cycleCounter = 0;
+		totalPPUCycles = randomAlignment(re);
 
 		PPU_cycles = 0;
-		PPU_scanline = -1;
+		PPU_scanline = 0;
 		memset(&PPU_memory[0], 0, 0x4000);
 
 		frameFinished = false;
@@ -66,12 +69,13 @@ public:
 		stopCPU = true;
 
 		S -= 3;
-		SR |= 0x04;
+		//SR |= 0x04;
+		SET_FLAG_1(FLAG_INTERRUPT_DISABLE);
 		CPU_cycles = 9;
 		PC = CPU_readMemory2B(RESET_VECTOR);
 		PPU_cycles = 0;
-		PPU_scanline = -1;
-		cycleCounter = 0;
+		PPU_scanline = 0;
+		CPU_writeMemory1B(0x4015, 0);
 		frameFinished = false;
 
 		PPU_CTRL = 0x00;
@@ -177,7 +181,7 @@ public:
 
 	uint16_t PPU_HANDLE_ADDRESS(uint16_t address)
 	{
-		address &= 0x3fff;
+		address %= 0x4000;
 
 		// Nametable mirroring
 		if (mirroring == Horizontal)
@@ -187,7 +191,7 @@ public:
 		}
 		else if (mirroring == Vertical)
 		{
-			if ((address >= 0x2800 && address < 0x2c00) || (address >= 0x2c00 && address < 0x3000))
+			if (address >= 0x2800 && address < 0x3000)
 				address -= 0x800;
 		}
 
@@ -215,7 +219,6 @@ public:
 			CPU_memory[address % 0x800] = value;
 			return;
 		}
-
 		else if (address < 0x4000) // PPU registers
 		{
 			switch (address % 8)
@@ -265,7 +268,7 @@ public:
 				if (w == 0)
 				{
 					t &= 0x00ff;
-					t |= (uint16_t)(value & 0b01111111) << 8;
+					t |= ((uint16_t)value & 0b01111111) << 8;
 				}
 				else
 				{
@@ -288,12 +291,11 @@ public:
 
 			return;
 		}
-
 		else if (address < 0x4018) // APU and IO registers
 		{
 			switch (address)
 			{
-			case 0x4014:
+			case 0x4014:	// OAM DMA
 				for (unsigned int i = 0; i < 256; i++)
 				{
 					uint16_t dmaAddress = ((uint16_t)value << 8) | i;
@@ -301,7 +303,8 @@ public:
 					*OAMGetByte(OAMAddress + i) = CPU_readMemory1B(dmaAddress);
 				}
 
-				CPU_cycles = 513; // or 514
+				//CPU_cycles = 513; // or 514
+				CPU_cycles += 512;
 
 				break;
 
@@ -313,12 +316,9 @@ public:
 
 			return;
 		}
-
 		else if (address < 0x4020) // APU and I/O functionality that is normally disabled
 			return;
-
 		// Cartridge space
-
 		else if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
 		{
 			if (address < 0x8000) // Family BASIC only
@@ -352,8 +352,7 @@ public:
 	{
 		if (address < 0x2000)
 			return CPU_memory[address % 0x800];
-
-		if (address < 0x4000) // PPU registers
+		else if (address < 0x4000) // PPU registers
 		{
 			uint8_t regNb = address % 8;
 
@@ -391,8 +390,7 @@ public:
 
 			return 0;
 		}
-
-		if (address < 0x4018) // APU and IO registers
+		else if (address < 0x4018) // APU and IO registers
 		{
 			switch (address)
 			{
@@ -401,23 +399,23 @@ public:
 				controller1ShiftRegister >>= 1;
 				return value;
 			}
+
 			return 0;
 		}
-
-		if (address < 0x4020) // APU and I/O functionality that is normally disabled
+		else if (address < 0x4020) // APU and I/O functionality that is normally disabled
 			return 0;
 
 		// Cartridge space
-		if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
+		else if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
 		{
 			if (address < 0x8000) // Family BASIC only
-				return 0;//CPU_memory[address]; // 8 KB PRG RAM
+				return CPU_memory[address]; // 8 KB PRG RAM
 
 			if (address < 0xc000) // First 16 KB of ROM.
 				return CPU_memory[address];
-			if (mapper == Mapper0_NROM_128) // Last 16 KB of ROM (NROM-256) or mirror of $8000-$BFFF (NROM-128).
+			if (mapper == Mapper0_NROM_128) // Mirror of $8000-$BFFF
 				return CPU_memory[address - 16384];
-			if (mapper == Mapper0_NROM_256) // Last 16 KB of ROM (NROM-256) or mirror of $8000-$BFFF (NROM-128).
+			if (mapper == Mapper0_NROM_256) // Last 16 KB of ROM (NROM-256)
 				return CPU_memory[address];
 
 			return 0;
@@ -482,7 +480,15 @@ public:
 				v ^= 0x0400;
 			}
 			else
+			{
 				v += 1;
+			}
+
+			v_2 = v;
+			//x += 8;
+			//x %= 8;
+			//x_2 = x;
+			//x = 0;
 		}
 	}
 
@@ -491,7 +497,9 @@ public:
 		if (RENDERING_ENABLED)
 		{
 			if ((v & 0x7000) != 0x7000)
+			{
 				v += 0x1000;
+			}
 			else
 			{
 				v &= ~0x7000;
@@ -507,7 +515,10 @@ public:
 					y += 1;
 
 				v = (v & ~0x03E0) | (y << 5);
-			}
+			}			
+
+			v_2 = v;
+			x_2 = x;
 		}
 	}
 
@@ -770,14 +781,15 @@ public:
 		{
 			//uint16_t nametableBase = 0x2000 + 0x400 * (nametableY * 2 + nametableX);
 
-			uint8_t x_pos = x + 8 * LOOPY_GET_COARSE_X(v), y_pos = LOOPY_GET_FINE_Y(v) + 8 * LOOPY_GET_COARSE_Y(v);
+			uint8_t x_pos = x_2 +					8 * LOOPY_GET_COARSE_X(v_2), 
+					y_pos = LOOPY_GET_FINE_Y(v_2) + 8 * LOOPY_GET_COARSE_Y(v_2);
 
 			//uint8_t tileX = x_pos / 8, tileY = y_pos / 8;
-			uint8_t attributeTileX = x_pos / 32, attributeTileY = y_pos / 32;
+			uint8_t attributeTileX =	  x_pos / 32, attributeTileY =		y_pos / 32;
 			uint8_t smallAttributeTileX = x_pos / 16, smallAttributeTileY = y_pos / 16;
 
 			uint8_t attributeByte =
-				PPU_readMemory1B(0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07));
+			PPU_readMemory1B(0x23c0 | (v_2 & 0x0c00) | ((v_2 >> 4) & 0x38) | ((v_2 >> 2) & 0x07));
 
 			uint8_t palette_bottomRight = (attributeByte >> 6),
 					palette_bottomLeft = (attributeByte >> 4) & 0b11,
@@ -800,7 +812,7 @@ public:
 					palette = palette_topLeft;
 			}
 
-			uint8_t bgTile = PPU_readMemory1B(0x2000 | (v & 0x0fff));
+			uint8_t bgTile = PPU_readMemory1B(0x2000 | (v_2 & 0x0fff));
 
 			//colorCode = v & 0x0fff;
 			//return;
@@ -813,11 +825,11 @@ public:
 
 			bool patternTable = REG_GET_FLAG(PPU_CTRL, PPU_CTRL_BG_PATTERN_TABLE_ADDRESS);
 
-			uint8_t row_lo = GetRowFromTile(0, patternTable, bgTile, LOOPY_GET_FINE_Y(v)),
-				row_hi = GetRowFromTile(1, patternTable, bgTile, LOOPY_GET_FINE_Y(v));
+			uint8_t row_lo = GetRowFromTile(0, patternTable, bgTile, LOOPY_GET_FINE_Y(v_2)),
+					row_hi = GetRowFromTile(1, patternTable, bgTile, LOOPY_GET_FINE_Y(v_2));
 
-			uint8_t paletteIndex_lo = REG_GET_FLAG(row_lo, 7 - x),
-				paletteIndex_hi = REG_GET_FLAG(row_hi, 7 - x);
+			uint8_t paletteIndex_lo = REG_GET_FLAG(row_lo, 7 - x_2),
+					paletteIndex_hi = REG_GET_FLAG(row_hi, 7 - x_2);
 			uint8_t paletteIndex = (paletteIndex_hi << 1) | paletteIndex_lo;
 
 			if (paletteIndex != 0)
@@ -831,6 +843,12 @@ public:
 
 			if (settings.debugBGPalette)
 				colorCode = palette + 0x11;
+
+			x_2++;
+			x_2 %= 8;
+
+			if (x_2 == 0)
+				PPU_coarse_X_increment();
 		}
 	}
 
@@ -963,12 +981,6 @@ public:
 
 		//colorCode = spriteColor;
 
-		if (solidBG && solidSpr && sprite0Visible && PPU_cycles != 255/* && !sprite0HitAlreadyHappened*/)
-		{
-			//sprite0HitAlreadyHappened = true;
-			REG_SET_FLAG_1(PPU_STATUS, PPU_STATUS_SPRITE_0_HIT);
-		}
-
 		bool grayscale = REG_GET_FLAG(PPU_MASK, PPU_MASK_GRAYSCALE);
 
 		uint8_t chroma = (colorCode & 0x0f);
@@ -992,6 +1004,38 @@ public:
 			color = RotateHue(color, 5.f * luma);
 
 		screen2.setPixel(PPU_cycles, PPU_scanline, color);
+
+		if (solidBG && solidSpr && sprite0Visible/* && (PPU_cycles >= 2 && PPU_cycles < 255)*/)
+		{
+			REG_SET_FLAG_1(PPU_STATUS, PPU_STATUS_SPRITE_0_HIT);
+			//colorCode = 0x24;
+		}
+	}
+
+	void HandleInput()
+	{
+		if (controllerLatch1)
+		{
+			for (unsigned int i = 0; i < 8; i++)
+			{
+				controller1ShiftRegister &= ~(1 << i);
+				controller1ShiftRegister |= ((sf::Keyboard::isKeyPressed(keyMap[7 - i])) << i);
+			}
+
+			if (settings.blockImpossibleInputs)
+			{
+				if (REG_GET_FLAG(controller1ShiftRegister, 4) && REG_GET_FLAG(controller1ShiftRegister, 5))
+				{
+					REG_SET_FLAG_0(controller1ShiftRegister, 4);
+					REG_SET_FLAG_0(controller1ShiftRegister, 5);
+				}
+				if (REG_GET_FLAG(controller1ShiftRegister, 7) && REG_GET_FLAG(controller1ShiftRegister, 6))
+				{
+					REG_SET_FLAG_0(controller1ShiftRegister, 7);
+					REG_SET_FLAG_0(controller1ShiftRegister, 6);
+				}
+			}
+		}
 	}
 
 	void cycle();
@@ -1008,7 +1052,7 @@ public:
 
 	uint16_t CPU_cycles;
 	uint16_t PPU_cycles;
-	uint8_t cycleCounter;
+	uint32_t totalPPUCycles;
 	uint16_t PPU_scanline;
 	Mapper mapper;
 	Mirroring mirroring;
@@ -1022,11 +1066,12 @@ public:
 	uint32_t logLines;
 
 	bool w; // write latch
-	uint16_t v; // VRAM address
+	uint16_t v; // VRAM address/Scrolling
+	uint16_t v_2; // Scrolling
 	uint16_t t; // temp VRAM address
 	uint8_t ppuReadBuffer;
 	uint8_t x; // fine x scroll (3 bits)
-	//bool sprite0HitAlreadyHappened;
+	uint8_t x_2;
 
 	OAMEntry OAM[64];
 	OAMEntry OAM2[8];
