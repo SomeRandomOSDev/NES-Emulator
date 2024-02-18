@@ -238,6 +238,9 @@ int WinMain(
 			else
 				window.create(sf::VideoMode(800, 550), "NES Emulator", sf::Style::Fullscreen);
 
+			window.setFramerateLimit((int)60.1);
+			window.setVerticalSyncEnabled(false);
+
 			fullscreen ^=  true;
 		}
 

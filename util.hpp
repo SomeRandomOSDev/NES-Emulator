@@ -301,4 +301,50 @@ namespace
 		uint8_t attributes;
 		uint8_t x;
 	};)
+
+	//struct CPUAddressSpace
+	//{
+	//	uint8_t RAM[2 * KB];
+	//	bool w;
+
+	//	uint8_t read_1B(uint16_t address)
+	//	{
+	//		if (address < 0x2000)
+	//			return RAM[address % (2 * KB)];
+	//		if (address < 0x4000)
+	//		{
+	//			switch (address % 8)
+	//			{
+	//			case 0x0002: // PPU STATUS
+	//			{
+	//				w = false;
+
+	//				uint8_t value = PPU_STATUS;
+
+	//				REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_VBLANK);
+
+	//				return value;
+	//			}
+
+	//			case 0x0004:
+	//				return *OAMGetByte(OAMAddress);
+
+	//			case 0x0007:	// PPU DATA
+	//				if (address < 0x3f00)
+	//				{
+	//					uint8_t value = ppuReadBuffer;
+	//					ppuReadBuffer = PPU_readMemory1B(v);
+	//					v += REG_GET_FLAG(PPU_CTRL, PPU_CTRL_VRAM_ADDRESS_INCREMENT_DIRECTION) ? 32 : 1;
+	//					return value;
+	//				}
+	//				else
+	//				{
+	//					ppuReadBuffer = PPU_readMemory1B(v);
+	//					v += REG_GET_FLAG(PPU_CTRL, PPU_CTRL_VRAM_ADDRESS_INCREMENT_DIRECTION) ? 32 : 1;
+	//					return ppuReadBuffer;
+	//				}
+	//			}
+	//		}
+	//	}
+	//};
 }
