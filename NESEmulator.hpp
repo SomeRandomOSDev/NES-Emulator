@@ -841,8 +841,8 @@ public:
 				//colorCode = LOOPY_GET_NAMETABLE(v);
 			}
 
-			if (settings.debugBGPalette)
-				colorCode = palette + 0x11;
+			//if (settings.debugBGPalette)
+			//	colorCode = palette + 0x11;
 
 			x_2++;
 			x_2 %= 8;
@@ -1042,7 +1042,7 @@ public:
 	void PPU_cycle();
 	void INTERRUPT(uint16_t returnAddress, uint16_t isrAddress, bool B_FLAG);
 	void NMI();
-	std::string CPU_cycle();
+	void/*std::string*/ CPU_cycle();
 
 public:
 	uint8_t CPU_memory[64 * KB];

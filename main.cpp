@@ -54,16 +54,18 @@ int WinMain(
 
 	updateRegistersText();
 
-	sf::Text text, line;
+	sf::Text text, line, FPS_text;
 	text.setFont(font);
-	text.setString("00");
-	text.setFont(font);
-	text.setString("00");
+	text.setString("");
+	line.setFont(font);
+	line.setString("");
+	FPS_text.setFont(font);
+	FPS_text.setString("");
 
 	int32_t memoryScroll = 0, ppuMemoryScroll = 0;
 
 	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown = 0, pDown = 0, 
-			 rDown = 0, bDown = 0, lDown = 0, wDown = 0;
+			 rDown = 0, /*bDown = 0, */lDown = 0, wDown = 0, f11Down = 0;
 
 	bool running = false;
 
@@ -76,10 +78,11 @@ int WinMain(
 
 	WindowState windowState = Screen;
 
-	emu.settings.debugBGPalette = false;
 	emu.settings.emulateDifferentialPhaseDistortion = false;
-	emu.settings.printLog = false;
+	//emu.settings.printLog = false;
 	emu.settings.blockImpossibleInputs = true;
+
+	bool fullscreen = false;
 
 	//sf::SoundBuffer sb;
 	//std::vector<sf::Int16> samples;
@@ -99,10 +102,15 @@ int WinMain(
 	//apu.frequency = 440;
 	////apu.play();
 
+	sf::Clock timer;
+
 	while(window.isOpen())
 	{
-		sf::Event event;
+		float deltaTime = timer.getElapsedTime().asSeconds();
+		timer.restart();
+		float FPS = 1 / deltaTime;
 
+		sf::Event event;
 		while (window.pollEvent(event))
 		{
 			if (event.type == sf::Event::Closed)
@@ -145,9 +153,10 @@ int WinMain(
 		HANDLE_KEY(iDown, I)	// one instruction
 		HANDLE_KEY(pDown, P)	// change palette
 		HANDLE_KEY(rDown, R)	// reset
-		HANDLE_KEY(bDown, B)	// show bg palette
+		//HANDLE_KEY(bDown, B)	// show bg palette
 		HANDLE_KEY(lDown, L)	// change rgb palette
 		HANDLE_KEY(wDown, W)	// change window
+		HANDLE_KEY(f11Down, F11)// toggle fullscreen
 
 		windowState = WindowState(int(windowState) + (wDown == 1));
 		windowState = WindowState(int(windowState) % 5);
@@ -170,7 +179,7 @@ int WinMain(
 				("Couldnt find palette \"" + paletteName + "\""));
 		}
 
-		emu.settings.debugBGPalette ^= (bDown == 1);
+		//emu.settings.debugBGPalette ^= (bDown == 1);
 
 		if (spaceDown == 1)
 			running ^= true;
@@ -222,6 +231,18 @@ int WinMain(
 			emu.loadFromiNES(__argv[0 + 1]);
 		}
 
+		if (f11Down == 1)
+		{
+			if (fullscreen)
+				window.create(SCREEN, "NES Emulator");
+			else
+				window.create(sf::VideoMode(800, 550), "NES Emulator", sf::Style::Fullscreen);
+
+			fullscreen ^=  true;
+		}
+
+////////////////////////////////////////////////////////////////
+
 		while (emu.logLines > 32)
 		{
 			emu.log.erase(0, emu.log.find("\n") + 1);
@@ -230,7 +251,7 @@ int WinMain(
 
 		sf::Vector2f ws = (sf::Vector2f)window.getSize();
 
-		window.clear(sf::Color(128, 128, 128));
+		window.clear(sf::Color(32, 32, 32));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -245,7 +266,7 @@ int WinMain(
 		sf::RectangleShape nametable(sf::Vector2f(nametableSize, nametableSize));
 		sf::Texture nametableTex;
 		uint16_t text_y = 10;
-		rect.setFillColor(sf::Color(100, 100, 100));
+		rect.setFillColor(sf::Color(50, 50, 50));
 		float scrollX = 
 		(LOOPY_GET_COARSE_X(emu.v) * 8 + emu.x + LOOPY_GET_NAMETABLE_X(emu.v) * 256) * nametableSize / 256.f,
 		scrollY = 
@@ -288,6 +309,11 @@ int WinMain(
 			screenTex.loadFromImage(emu.screen);
 			screen.setTexture(&screenTex);
 			window.draw(screen);
+
+			FPS_text.setString("FPS: " + std::to_string(int(FPS)));
+			FPS_text.setPosition(10, 10);
+			FPS_text.setCharacterSize(20);
+			window.draw(FPS_text);
 
 			break;
 
@@ -399,10 +425,8 @@ int WinMain(
 			rect.setPosition(scrollX + 2 * nametableSize, scrollY + 2 * nametableSize);
 			window.draw(rect);
 
-			rect.setFillColor(sf::Color(128, 128, 128));
-
 			rect.setSize(sf::Vector2f(nametableSize * 2, nametableSize * 2));
-			rect.setFillColor(sf::Color(128, 128, 128));
+			rect.setFillColor(sf::Color(32, 32, 32));
 			rect.setOutlineThickness(0);
 
 			rect.setPosition(2 * nametableSize, 0);

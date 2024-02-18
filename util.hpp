@@ -278,9 +278,8 @@ namespace
 
 	struct EmulationSettings
 	{
-		bool printLog;
+		//bool printLog;
 		bool emulateDifferentialPhaseDistortion; 
-		bool debugBGPalette;
 		bool blockImpossibleInputs;
 	};
 
@@ -302,23 +301,4 @@ namespace
 		uint8_t attributes;
 		uint8_t x;
 	};)
-
-	//struct OAM2Entry
-	//{
-	//	uint8_t y;
-	//	uint8_t tileIndex;
-	//	uint8_t attributes;
-	//	uint8_t x;
-	//	bool sprite0;
-
-	//	OAM2Entry operator=(const OAMEntry& entry)
-	//	{
-	//		x = entry.x;
-	//		y = entry.y;
-	//		tileIndex = entry.tileIndex;
-	//		attributes = entry.attributes;
-	//		sprite0 = false;
-	//		return *this;
-	//	}
-	//};
 }

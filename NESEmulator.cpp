@@ -39,9 +39,9 @@ void NESEmulator::cycle()
 
 	if ((totalPPUCycles % 3) == 0)
 	{
-		std::string instructionLog = CPU_cycle();
-		if (instructionLog != "" && settings.printLog)
-			LOG_ADD_LINE(instructionLog);
+		/*std::string instructionLog = */CPU_cycle();
+		//if (instructionLog != "" && settings.printLog)
+		//	LOG_ADD_LINE(instructionLog);
 	}
 }
 
@@ -53,6 +53,7 @@ void NESEmulator::PPU_cycle()
 		{
 			LOOPY_SET_COARSE_X(v, LOOPY_GET_COARSE_X(t));
 			LOOPY_SET_NAMETABLE_X(v, LOOPY_GET_NAMETABLE_X(t));
+
 			v_2 = v;
 			x_2 = x;
 		}
@@ -61,8 +62,6 @@ void NESEmulator::PPU_cycle()
 			LOOPY_SET_COARSE_Y(v, LOOPY_GET_COARSE_Y(t));
 			LOOPY_SET_FINE_Y(v, LOOPY_GET_FINE_Y(t));
 			LOOPY_SET_NAMETABLE_Y(v, LOOPY_GET_NAMETABLE_Y(t));
-			//v = t;
-			v_2 = v;
 		}
 
 		if (PPU_cycles == 256)
@@ -124,9 +123,9 @@ void NESEmulator::PPU_cycle()
 	totalPPUCycles++;
 }
 
-std::string NESEmulator::CPU_cycle()
+void/*std::string*/ NESEmulator::CPU_cycle()
 {
-	std::string str = "";
+	//std::string str = "";
 	if(!stopCPU)
 	{
 	if (CPU_cycles == 0)
@@ -140,12 +139,12 @@ std::string NESEmulator::CPU_cycle()
 		uint8_t PCPage = ((PC + 2) >> 8);
 		bool pageBoundaryCrossed = false;
 
-		str += "$" + HEX_2B(PC) + " : $" + HEX_1B(opcode) + " : ";
+		//str += "$" + HEX_2B(PC) + " : $" + HEX_1B(opcode) + " : ";
 
 		switch (opcode)
 		{
 		case 0x00: // BRK imm8
-			str += "BRK #$" + HEX(arg8);
+			//str += "BRK #$" + HEX(arg8);
 
 			INTERRUPT(PC + 2, BRK_VECTOR, true);
 
@@ -154,7 +153,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x01: // ORA (indirect, X)
-			str += "ORA ($" + HEX(arg8) + ", X)";
+			//str += "ORA ($" + HEX(arg8) + ", X)";
 
 			tmp8 = CPU_readMemory1B(indexedIndirectXAddress(arg8));
 
@@ -169,7 +168,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x05: // ORA zeropage
-			str += "ORA $" + HEX(arg8);
+			//str += "ORA $" + HEX(arg8);
 
 			tmp8 = CPU_readMemory1B(arg8);
 
@@ -184,7 +183,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x06: // ASL zeropage
-			str += "ASL $" + HEX(arg8);
+			//str += "ASL $" + HEX(arg8);
 
 			tmp8 = CPU_readMemory1B(arg8);
 
@@ -203,7 +202,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x08: // PHP
-			str += "PHP";
+			//str += "PHP";
 
 			push1B(SR | (1 << FLAG_B) | (1 << FLAG_1));
 
@@ -213,7 +212,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x09: // ORA imm8
-			str += "ORA #$" + HEX(arg8);
+			//str += "ORA #$" + HEX(arg8);
 
 			A |= arg8;
 
@@ -226,7 +225,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x0a: // ASL A
-			str += "ASL A";
+			//str += "ASL A";
 
 			SET_FLAG(FLAG_C, A >> 7);
 
@@ -241,7 +240,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x0d: // ORA absolute
-			str += "ORA $" + HEX(arg16);
+			//str += "ORA $" + HEX(arg16);
 
 			A |= CPU_readMemory1B(arg16);
 
@@ -254,7 +253,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x0e: // ASL absolute
-			str += "ASL $" + HEX(arg16);
+			//str += "ASL $" + HEX(arg16);
 
 			tmp8 = CPU_readMemory1B(arg16);
 
@@ -273,7 +272,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x10: // BPL relative
-			str += "BPL $" + HEX(arg8);
+			//str += "BPL $" + HEX(arg8);
 
 			CPU_cycles = 2;
 
@@ -291,7 +290,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x11: // ORA (indirect), Y
-			str += "ORA ($" + HEX(arg8) + "), Y";
+			//str += "ORA ($" + HEX(arg8) + "), Y";
 
 			A |= readIndirectIndexedY(arg8, pageBoundaryCrossed);
 
@@ -304,7 +303,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x15: // ORA zeropage, X
-			str += "ORA $" + HEX(arg8) + ", X";
+			//str += "ORA $" + HEX(arg8) + ", X";
 
 			A |= CPU_readMemory1B(zeropageIndexedXAddress(arg8));
 
@@ -317,7 +316,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x16: // ASL zeropage, X
-			str += "ASL $" + HEX(arg8) + ", X";
+			//str += "ASL $" + HEX(arg8) + ", X";
 
 			tmp16 = zeropageIndexedXAddress(arg8);
 			tmp8 = CPU_readMemory1B(tmp16);
@@ -337,7 +336,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x18: // CLC
-			str += "CLC";
+			//str += "CLC";
 
 			SET_FLAG_0(FLAG_C);
 
@@ -347,7 +346,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x19: // ORA absolute, Y
-			str += "ORA $" + HEX(arg16) + ", Y";
+			//str += "ORA $" + HEX(arg16) + ", Y";
 
 			A |= CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
 
@@ -360,7 +359,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x1d: // ORA absolute, X
-			str += "ORA $" + HEX(arg16) + ", X";
+			//str += "ORA $" + HEX(arg16) + ", X";
 
 			A |= CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
 
@@ -373,7 +372,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x1e: // ASL absolute, X
-			str += "ASL $" + HEX(arg16) + ", X";
+			//str += "ASL $" + HEX(arg16) + ", X";
 
 			tmp16 = absoluteIndexedXAddress(arg16, pageBoundaryCrossed);
 
@@ -394,7 +393,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x20: // JSR absolute
-			str += "JSR $" + HEX(arg16);
+			//str += "JSR $" + HEX(arg16);
 
 			push2B(PC + 2);
 
@@ -405,7 +404,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x21: // AND (indirect, X)
-			str += "AND ($" + HEX(arg8) + ", X)";
+			//str += "AND ($" + HEX(arg8) + ", X)";
 
 			A &= CPU_readMemory1B(indexedIndirectXAddress(arg8));
 
@@ -418,7 +417,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x24: // BIT zeropage
-			str += "BIT $" + HEX(arg8);
+			//str += "BIT $" + HEX(arg8);
 
 			tmp8 = CPU_readMemory1B(arg8);
 
@@ -433,7 +432,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x25: // AND zeropage
-			str += "AND $" + HEX(arg8);
+			//str += "AND $" + HEX(arg8);
 
 			A &= CPU_readMemory1B(arg8);
 
@@ -446,7 +445,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x26: // ROL zeropage
-			str += "ROL $" + HEX(arg8);
+			//str += "ROL $" + HEX(arg8);
 
 			tmp8 = CPU_readMemory1B(arg8);
 
@@ -467,7 +466,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x28: // PLP
-			str += "PLP";
+			//str += "PLP";
 
 			SR = pull1B();
 			SET_FLAG_0(FLAG_B);
@@ -479,7 +478,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x29: // AND imm8
-			str += "AND #$" + HEX(arg8);
+			//str += "AND #$" + HEX(arg8);
 
 			A &= arg8;
 
@@ -492,7 +491,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x2a: // ROL A
-			str += "ROL A";
+			//str += "ROL A";
 
 			tmp1 = GET_FLAG(FLAG_C);
 
@@ -509,7 +508,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x2c: // BIT absolute
-			str += "BIT $" + HEX(arg16);
+			//str += "BIT $" + HEX(arg16);
 
 			tmp8 = CPU_readMemory1B(arg16);
 
@@ -524,7 +523,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x2d: // AND absolute
-			str += "AND $" + HEX(arg16);
+			//str += "AND $" + HEX(arg16);
 
 			A &= CPU_readMemory1B(arg16);
 
@@ -537,7 +536,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x2e: // ROL absolute
-			str += "ROL $" + HEX(arg16);
+			//str += "ROL $" + HEX(arg16);
 
 			tmp8 = CPU_readMemory1B(arg16);
 
@@ -558,7 +557,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x30: // BMI relative
-			str += "BMI $" + HEX(arg8);
+			//str += "BMI $" + HEX(arg8);
 
 			CPU_cycles = 2;
 
@@ -574,7 +573,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x31: // AND (indirect), Y
-			str += "AND ($" + HEX(arg8) + "), Y";
+			//str += "AND ($" + HEX(arg8) + "), Y";
 
 			A &= readIndirectIndexedY(arg8, pageBoundaryCrossed);
 
@@ -587,7 +586,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x35: // AND zeropage, Y
-			str += "AND $" + HEX(arg8) + ", Y";
+			//str += "AND $" + HEX(arg8) + ", Y";
 
 			A &= CPU_readMemory1B(zeropageIndexedYAddress(arg8));
 
@@ -600,7 +599,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x36: // ROL zeropage, X
-			str += "ROL $" + HEX(arg8) + ", X";
+			//str += "ROL $" + HEX(arg8) + ", X";
 
 			tmp16 = zeropageIndexedXAddress(arg8);
 			tmp8 = CPU_readMemory1B(tmp16);
@@ -622,7 +621,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x38: // SEC
-			str += "SEC";
+			//str += "SEC";
 
 			SET_FLAG_1(FLAG_CARRY);
 
@@ -632,7 +631,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x39: // AND absolute, Y
-			str += "AND $" + HEX(arg16) + ", Y";
+			//str += "AND $" + HEX(arg16) + ", Y";
 
 			A &= CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
 
@@ -645,7 +644,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x3d: // AND absolute, X
-			str += "AND $" + HEX(arg16) + ", X";
+			//str += "AND $" + HEX(arg16) + ", X";
 
 			A &= CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
 
@@ -658,7 +657,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x3e: // ROL absolute, X
-			str += "ROL $" + HEX(arg16) + ", X";
+			//str += "ROL $" + HEX(arg16) + ", X";
 
 			tmp16 = absoluteIndexedXAddress(arg16, pageBoundaryCrossed);
 			tmp8 = CPU_readMemory1B(tmp16);
@@ -680,7 +679,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x40: // RTI
-			str += "RTI";
+			//str += "RTI";
 
 			SR = pull1B();
 			//SET_FLAG_0(FLAG_I);
@@ -693,7 +692,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x41: // EOR (indirect, X)
-			str += "EOR ($" + HEX(arg8) + ", X)";
+			//str += "EOR ($" + HEX(arg8) + ", X)";
 
 			tmp8 = CPU_readMemory1B(indexedIndirectXAddress(arg8));
 			A ^= tmp8;
@@ -707,7 +706,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x45: // EOR zeropage
-			str += "EOR $" + HEX(arg8);
+			//str += "EOR $" + HEX(arg8);
 
 			tmp8 = CPU_readMemory1B(arg8);
 			A ^= tmp8;
@@ -721,7 +720,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x46: // LSR zeropage
-			str += "LSR $" + HEX(arg8);
+			//str += "LSR $" + HEX(arg8);
 
 			tmp8 = CPU_readMemory1B(arg8);
 
@@ -740,7 +739,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x48: // PHA
-			str += "PHA";
+			//str += "PHA";
 
 			push1B(A);
 
@@ -750,7 +749,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x49: // EOR imm8
-			str += "EOR #$" + HEX(arg8);
+			//str += "EOR #$" + HEX(arg8);
 
 			A ^= arg8;
 
@@ -763,7 +762,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x4a: // LSR A
-			str += "LSR A";
+			//str += "LSR A";
 
 			SET_FLAG(FLAG_C, A & 1);
 
@@ -778,7 +777,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x4c: // JMP absolute
-			str += "JMP $" + HEX(arg16);
+			//str += "JMP $" + HEX(arg16);
 
 			CPU_cycles = 3;
 			//PC += 3;
@@ -788,7 +787,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x4d: // EOR absolute
-			str += "EOR $" + HEX(arg16);
+			//str += "EOR $" + HEX(arg16);
 
 			A ^= CPU_readMemory1B(arg16);
 
@@ -801,7 +800,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x4e: // LSR absolute
-			str += "LSR $" + HEX(arg16);
+			//str += "LSR $" + HEX(arg16);
 
 			tmp8 = CPU_readMemory1B(arg16);
 
@@ -820,7 +819,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x50: // BVC relative
-			str += "BVC $" + HEX(arg8);
+			//str += "BVC $" + HEX(arg8);
 
 			CPU_cycles = 2;
 
@@ -838,7 +837,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x51: // EOR (indirect), Y
-			str += "EOR ($" + HEX(arg8) + "), Y";
+			//str += "EOR ($" + HEX(arg8) + "), Y";
 
 			tmp8 = readIndirectIndexedY(arg8, pageBoundaryCrossed);
 			A ^= tmp8;
@@ -852,7 +851,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x55: // EOR zeropage, X
-			str += "EOR $" + HEX(arg8) + ", X";
+			//str += "EOR $" + HEX(arg8) + ", X";
 
 			tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
 			A ^= tmp8;
@@ -866,7 +865,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x56: // LSR zeropage, X
-			str += "LSR $" + HEX(arg8) + ", X";
+			//str += "LSR $" + HEX(arg8) + ", X";
 
 			tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
 
@@ -893,7 +892,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x59: // EOR absolute, Y
-			str += "EOR $" + HEX(arg16) + ", Y";
+			//str += "EOR $" + HEX(arg16) + ", Y";
 
 			tmp8 = CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
 			A ^= tmp8;
@@ -907,7 +906,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x5d: // EOR absolute, X
-			str += "EOR $" + HEX(arg16) + ", X";
+			//str += "EOR $" + HEX(arg16) + ", X";
 
 			tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
 			A ^= tmp8;
@@ -921,7 +920,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x5e: // LSR absolute, X
-			str += "LSR $" + HEX(arg16) + ", X";
+			//str += "LSR $" + HEX(arg16) + ", X";
 
 			tmp16 = absoluteIndexedXAddress(arg16, pageBoundaryCrossed);
 			tmp8 = CPU_readMemory1B(tmp16);
@@ -941,7 +940,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x60: // RTS
-			str += "RTS";
+			//str += "RTS";
 
 			PC = pull2B();
 
@@ -951,7 +950,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x61: // ADC (indirect, X)
-			str += "ADC ($" + HEX(arg8) + ", X)";
+			//str += "ADC ($" + HEX(arg8) + ", X)";
 
 			tmp8 = CPU_readMemory1B(indexedIndirectXAddress(arg8));
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -968,7 +967,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x65: // ADC zeropage
-			str += "ADC $" + HEX(arg8);
+			//str += "ADC $" + HEX(arg8);
 
 			tmp8 = CPU_readMemory1B(arg8);
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -985,7 +984,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x66: // ROR zeropage
-			str += "ROR $" + HEX(arg8);
+			//str += "ROR $" + HEX(arg8);
 
 			tmp8 = CPU_readMemory1B(arg8);
 
@@ -1006,7 +1005,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x68: // PLA
-			str += "PLA";
+			//str += "PLA";
 
 			A = pull1B();
 
@@ -1019,7 +1018,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x69: // ADC imm8
-			str += "ADC #$" + HEX(arg8);
+			//str += "ADC #$" + HEX(arg8);
 
 			tmp16 = (uint16_t)A + (uint16_t)arg8 + (uint16_t)GET_FLAG(FLAG_C);
 			A = (uint8_t)tmp16;
@@ -1035,7 +1034,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x6a: // ROR A
-			str += "ROR A";
+			//str += "ROR A";
 
 			tmp8 = A;
 
@@ -1056,7 +1055,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x6c: // JMP (indirect)
-			str += "JMP ($" + HEX(arg16) + ")";
+			//str += "JMP ($" + HEX(arg16) + ")";
 
 			CPU_cycles = 5;
 			//PC += 3;
@@ -1073,7 +1072,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x6d: // ADC absolute
-			str += "ADC $" + HEX(arg16);
+			//str += "ADC $" + HEX(arg16);
 
 			tmp8 = CPU_readMemory1B(arg16);
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -1090,7 +1089,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x6e: // ROR absolute
-			str += "ROR $" + HEX(arg16);
+			//str += "ROR $" + HEX(arg16);
 
 			tmp8 = CPU_readMemory1B(arg16);
 
@@ -1111,7 +1110,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x70: // BVS relative
-			str += "BPL $" + HEX(arg8);
+			//str += "BPL $" + HEX(arg8);
 
 			CPU_cycles = 2;
 
@@ -1129,7 +1128,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x71: // ADC (indirect), Y
-			str += "ADC ($" + HEX(arg8) + "), Y";
+			//str += "ADC ($" + HEX(arg8) + "), Y";
 
 			tmp8 = readIndirectIndexedY(arg8, pageBoundaryCrossed);
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -1146,7 +1145,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x75: // ADC zeropage, X
-			str += "ADC ($" + HEX(arg8) + "), X";
+			//str += "ADC ($" + HEX(arg8) + "), X";
 
 			tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -1163,7 +1162,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x76: // ROR zeropage, X
-			str += "ROR $" + HEX(arg8) + ", X";
+			//str += "ROR $" + HEX(arg8) + ", X";
 
 			tmp16 = zeropageIndexedXAddress(arg8);
 
@@ -1186,7 +1185,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x78: // SEI
-			str += "SEI";
+			//str += "SEI";
 
 			SET_FLAG_1(FLAG_I);
 
@@ -1196,7 +1195,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x79: // ADC absolute, Y
-			str += "ADC ($" + HEX(arg16) + "), Y";
+			//str += "ADC ($" + HEX(arg16) + "), Y";
 
 			tmp8 = CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -1213,7 +1212,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x7d: // ADC absolute, X
-			str += "ADC ($" + HEX(arg16) + "), X";
+			//str += "ADC ($" + HEX(arg16) + "), X";
 
 			tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -1230,7 +1229,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x7e: // ROR absolute, X
-			str += "ROR $" + HEX(arg16) + ", X";
+			//str += "ROR $" + HEX(arg16) + ", X";
 
 			tmp16 = absoluteIndexedXAddress(arg16, pageBoundaryCrossed);
 
@@ -1253,7 +1252,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x81: // STA (indirect, X)
-			str += "STA ($" + HEX(arg8) + ", X)";
+			//str += "STA ($" + HEX(arg8) + ", X)";
 
 			CPU_writeMemory1B(indexedIndirectXAddress(arg8), A);
 
@@ -1263,7 +1262,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x84: // STY zeropage
-			str += "STY $" + HEX(arg8);
+			//str += "STY $" + HEX(arg8);
 
 			CPU_writeMemory1B(arg8, Y);
 
@@ -1273,7 +1272,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x85: // STA zeropage
-			str += "STA $" + HEX(arg8);
+			//str += "STA $" + HEX(arg8);
 
 			CPU_writeMemory1B(arg8, A);
 
@@ -1283,7 +1282,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x86: // STX zeropage
-			str += "STX $" + HEX(arg8);
+			//str += "STX $" + HEX(arg8);
 
 			CPU_writeMemory1B(arg8, X);
 
@@ -1293,7 +1292,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x88: // DEY
-			str += "DEY";
+			//str += "DEY";
 
 			Y--;
 
@@ -1306,7 +1305,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x8a: // TXA
-			str += "TXA";
+			//str += "TXA";
 
 			A = X;
 
@@ -1319,7 +1318,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x8c: // STY absolute
-			str += "STY $" + HEX(arg16);
+			//str += "STY $" + HEX(arg16);
 
 			CPU_writeMemory1B(arg16, Y);
 
@@ -1329,7 +1328,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x8d: // STA absolute
-			str += "STA $" + HEX(arg16);
+			//str += "STA $" + HEX(arg16);
 
 			CPU_writeMemory1B(arg16, A);
 
@@ -1339,7 +1338,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x8e: // STX absolute
-			str += "STX $" + HEX(arg16);
+			//str += "STX $" + HEX(arg16);
 
 			CPU_writeMemory1B(arg16, X);
 
@@ -1349,7 +1348,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x90: // BCC relative
-			str += "BPL $" + HEX(arg8);
+			//str += "BPL $" + HEX(arg8);
 
 			CPU_cycles = 2;
 
@@ -1367,7 +1366,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x91: // STA (indirect), Y
-			str += "STA ($" + HEX(arg8) + "), Y";
+			//str += "STA ($" + HEX(arg8) + "), Y";
 
 			CPU_writeMemory1B(indirectIndexedYAddress(arg8), A);
 
@@ -1377,7 +1376,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x94: // STY zeropage, X
-			str += "STY $" + HEX(arg8) + ", X";
+			//str += "STY $" + HEX(arg8) + ", X";
 
 			CPU_writeMemory1B(zeropageIndexedXAddress(arg8), Y);
 
@@ -1387,7 +1386,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x95: // STA zeropage, X
-			str += "STA $" + HEX(arg8) + ", X";
+			//str += "STA $" + HEX(arg8) + ", X";
 
 			CPU_writeMemory1B(zeropageIndexedXAddress(arg8), A);
 
@@ -1397,7 +1396,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x96: // STX zeropage, Y
-			str += "STX $" + HEX(arg8) + ", Y";
+			//str += "STX $" + HEX(arg8) + ", Y";
 
 			CPU_writeMemory1B(zeropageIndexedYAddress(arg8), X);
 
@@ -1407,7 +1406,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x98: // TYA
-			str += "TYA";
+			//str += "TYA";
 
 			A = Y;
 
@@ -1420,7 +1419,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x99: // STA absolute, Y
-			str += "STA $" + HEX(arg16) + ", Y";
+			//str += "STA $" + HEX(arg16) + ", Y";
 
 			CPU_writeMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed), A);
 
@@ -1430,7 +1429,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x9a: // TXS
-			str += "TXS";
+			//str += "TXS";
 
 			S = X;
 
@@ -1443,7 +1442,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0x9d: // STA absolute, X
-			str += "STA $" + HEX(arg16) + ", X";
+			//str += "STA $" + HEX(arg16) + ", X";
 
 			CPU_writeMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed), A);
 
@@ -1453,7 +1452,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xa0: // LDY imm8
-			str += "LDY #$" + HEX(arg8);
+			//str += "LDY #$" + HEX(arg8);
 
 			Y = arg8;
 
@@ -1466,7 +1465,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xa1: // LDA (indirect, X)
-			str += "LDA ($" + HEX(arg8) + ", X)";
+			//str += "LDA ($" + HEX(arg8) + ", X)";
 
 			A = CPU_readMemory1B(indexedIndirectXAddress(arg8));
 
@@ -1479,7 +1478,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xa2: // LDX imm8
-			str += "LDX #$" + HEX(arg8);
+			//str += "LDX #$" + HEX(arg8);
 
 			X = arg8;
 
@@ -1492,7 +1491,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xa4: // LDY zeropage
-			str += "LDY $" + HEX(arg8);
+			//str += "LDY $" + HEX(arg8);
 
 			Y = CPU_readMemory1B(arg8);
 
@@ -1505,7 +1504,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xa5: // LDA zeropage
-			str += "LDA $" + HEX(arg8);
+			//str += "LDA $" + HEX(arg8);
 
 			A = CPU_readMemory1B(arg8);
 
@@ -1518,7 +1517,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xa6: // LDX zeropage
-			str += "LDX $" + HEX(arg8);
+			//str += "LDX $" + HEX(arg8);
 
 			X = CPU_readMemory1B(arg8);
 
@@ -1531,7 +1530,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xa8: // TAY
-			str += "TAY";
+			//str += "TAY";
 
 			Y = A;
 
@@ -1544,7 +1543,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xa9: // LDA imm8
-			str += "LDA #$" + HEX(arg8);
+			//str += "LDA #$" + HEX(arg8);
 
 			A = arg8;
 
@@ -1557,7 +1556,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xaa: // TAX
-			str += "TAX";
+			//str += "TAX";
 
 			X = A;
 
@@ -1570,7 +1569,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xac: // LDY absolute
-			str += "LDY $" + HEX(arg16);
+			//str += "LDY $" + HEX(arg16);
 
 			Y = CPU_readMemory1B(arg16);
 
@@ -1583,7 +1582,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xad: // LDA absolute
-			str += "LDA $" + HEX(arg16);
+			//str += "LDA $" + HEX(arg16);
 
 			A = CPU_readMemory1B(arg16);
 
@@ -1596,7 +1595,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xae: // LDX absolute
-			str += "LDX $" + HEX(arg16);
+			//str += "LDX $" + HEX(arg16);
 
 			X = CPU_readMemory1B(arg16);
 
@@ -1609,7 +1608,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xb0: // BCS relative
-			str += "BCS $" + HEX(arg8);
+			//str += "BCS $" + HEX(arg8);
 
 			CPU_cycles = 2;
 
@@ -1627,7 +1626,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xb1: // LDA (indirect), Y
-			str += "LDA ($" + HEX(arg8) + "), Y";
+			//str += "LDA ($" + HEX(arg8) + "), Y";
 
 			A = readIndirectIndexedY(arg8, pageBoundaryCrossed);
 
@@ -1640,7 +1639,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xb4: // LDY zeropage, X
-			str += "LDY $" + HEX(arg8) + ", X";
+			//str += "LDY $" + HEX(arg8) + ", X";
 
 			Y = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
 
@@ -1653,7 +1652,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xb5: // LDA zeropage, X
-			str += "LDA $" + HEX(arg8) + ", X";
+			//str += "LDA $" + HEX(arg8) + ", X";
 
 			A = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
 
@@ -1666,7 +1665,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xb6: // LDX zeropage, Y
-			str += "LDX $" + HEX(arg8) + ", Y";
+			//str += "LDX $" + HEX(arg8) + ", Y";
 
 			X = CPU_readMemory1B(zeropageIndexedYAddress(arg8));
 
@@ -1679,7 +1678,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xb8: // CLV
-			str += "CLV";
+			//str += "CLV";
 
 			SET_FLAG_0(FLAG_V);
 
@@ -1689,7 +1688,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xb9: // LDA absolute, Y
-			str += "LDA $" + HEX(arg16) + ", Y";
+			//str += "LDA $" + HEX(arg16) + ", Y";
 
 			A = CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
 
@@ -1702,7 +1701,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xba: // TSX
-			str += "TSX";
+			//str += "TSX";
 
 			X = S;
 
@@ -1715,7 +1714,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xbc: // LDY absolute, X
-			str += "LDY $" + HEX(arg16) + ", X";
+			//str += "LDY $" + HEX(arg16) + ", X";
 
 			Y = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
 
@@ -1728,7 +1727,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xbd: // LDA absolute, X
-			str += "LDA $" + HEX(arg16) + ", X";
+			//str += "LDA $" + HEX(arg16) + ", X";
 
 			A = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
 
@@ -1741,7 +1740,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xbe: // LDX absolute, Y
-			str += "LDX $" + HEX(arg16) + ", Y";
+			//str += "LDX $" + HEX(arg16) + ", Y";
 
 			X = CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
 
@@ -1754,7 +1753,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xc0: // CPY imm8
-			str += "CPY #$" + HEX(arg8);
+			//str += "CPY #$" + HEX(arg8);
 
 			tmp8 = Y - arg8;
 
@@ -1769,7 +1768,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xc1: // CMP (indirect, X)
-			str += "CMP ($" + HEX(arg8) + ", X)";
+			//str += "CMP ($" + HEX(arg8) + ", X)";
 
 			tmp8_2 = CPU_readMemory1B(indexedIndirectXAddress(arg8));
 
@@ -1786,7 +1785,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xc4: // CPY zeropage
-			str += "CPY $" + HEX(arg8);
+			//str += "CPY $" + HEX(arg8);
 
 			tmp8_2 = CPU_readMemory1B(arg8);
 
@@ -1803,7 +1802,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xc5: // CMP zeropage
-			str += "CMP $" + HEX(arg8);
+			//str += "CMP $" + HEX(arg8);
 
 			tmp8_2 = CPU_readMemory1B(arg8);
 
@@ -1820,7 +1819,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xc6: // DEC zeropage
-			str += "DEC $" + HEX(arg8);
+			//str += "DEC $" + HEX(arg8);
 
 			tmp8 = CPU_readMemory1B(arg8) - 1;
 			CPU_writeMemory1B(arg8, tmp8);
@@ -1834,7 +1833,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xc8: // INY
-			str += "INY";
+			//str += "INY";
 
 			Y++;
 
@@ -1847,7 +1846,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xc9: // CMP imm8
-			str += "CMP #$" + HEX(arg8);
+			//str += "CMP #$" + HEX(arg8);
 
 			tmp8 = A - arg8;
 
@@ -1862,7 +1861,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xca: // DEX
-			str += "DEX";
+			//str += "DEX";
 
 			X--;
 
@@ -1875,7 +1874,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xcc: // CPY absolute
-			str += "CPY $" + HEX(arg16);
+			//str += "CPY $" + HEX(arg16);
 
 			tmp8_2 = CPU_readMemory1B(arg16);
 
@@ -1892,7 +1891,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xcd: // CMP absolute
-			str += "CMP $" + HEX(arg16);
+			//str += "CMP $" + HEX(arg16);
 
 			tmp8_2 = CPU_readMemory1B(arg16);
 
@@ -1909,7 +1908,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xce: // DEC absolute
-			str += "DEC $" + HEX(arg16);
+			//str += "DEC $" + HEX(arg16);
 
 			tmp8 = CPU_readMemory1B(arg16) - 1;
 			CPU_writeMemory1B(arg16, tmp8);
@@ -1923,7 +1922,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xd0: // BNE relative
-			str += "BNE $" + HEX(arg8);
+			//str += "BNE $" + HEX(arg8);
 
 			CPU_cycles = 2;
 
@@ -1941,7 +1940,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xd1: // CMP (indirect), Y
-			str += "CMP ($" + HEX(arg8) + "), Y";
+			//str += "CMP ($" + HEX(arg8) + "), Y";
 
 			tmp8_2 = readIndirectIndexedY(arg8, pageBoundaryCrossed);
 
@@ -1958,7 +1957,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xd5: // CMP zeropage, X
-			str += "CMP $" + HEX(arg8) + ", X";
+			//str += "CMP $" + HEX(arg8) + ", X";
 
 			tmp8_2 = CPU_readMemory1B(zeropageIndexedXAddress(arg8));
 
@@ -1975,7 +1974,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xd6: // DEC zeropage, X
-			str += "DEC $" + HEX(arg8) + ", X";
+			//str += "DEC $" + HEX(arg8) + ", X";
 
 			tmp16 = zeropageIndexedXAddress(arg8);
 			tmp8 = CPU_readMemory1B(tmp16) - 1;
@@ -1990,7 +1989,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xd8: // CLD
-			str += "CLD";
+			//str += "CLD";
 
 			SET_FLAG_0(FLAG_D);
 
@@ -2000,7 +1999,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xd9: // CMP absolute, Y
-			str += "CMP $" + HEX(arg16) + ", Y";
+			//str += "CMP $" + HEX(arg16) + ", Y";
 
 			tmp8_2 = CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
 
@@ -2017,7 +2016,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xdd: // CMP absolute, X
-			str += "CMP $" + HEX(arg16) + ", X";
+			//str += "CMP $" + HEX(arg16) + ", X";
 
 			tmp8_2 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
 
@@ -2034,7 +2033,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xde: // DEC absolute, X
-			str += "DEC $" + HEX(arg16) + ", X";
+			//str += "DEC $" + HEX(arg16) + ", X";
 
 			tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed)) - 1;
 			CPU_writeMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed), tmp8);
@@ -2048,7 +2047,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xe0: // CPX imm8
-			str += "CPX #$" + HEX(arg8);
+			//str += "CPX #$" + HEX(arg8);
 
 			tmp8 = X - arg8;
 
@@ -2063,7 +2062,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xe1: // SBC (indirect, X)
-			str += "SBC ($" + HEX(arg8) + ", X)";
+			//str += "SBC ($" + HEX(arg8) + ", X)";
 
 			tmp8 = ~CPU_readMemory1B(indexedIndirectXAddress(arg8));
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -2081,7 +2080,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xe4: // CPX zeropage
-			str += "CPX $" + HEX(arg8);
+			//str += "CPX $" + HEX(arg8);
 
 			tmp8_2 = CPU_readMemory1B(arg8);
 
@@ -2098,7 +2097,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xe5: // SBC zeropage
-			str += "SBC $" + HEX(arg8);
+			//str += "SBC $" + HEX(arg8);
 
 			tmp8 = ~CPU_readMemory1B(arg8);
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -2115,7 +2114,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xe6: // INC zeropage
-			str += "INC $" + HEX(arg8);
+			//str += "INC $" + HEX(arg8);
 
 			tmp8 = CPU_readMemory1B(arg8) + 1;
 			CPU_writeMemory1B(arg8, tmp8);
@@ -2129,7 +2128,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xe8: // INX
-			str += "INX";
+			//str += "INX";
 
 			X++;
 
@@ -2142,7 +2141,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xe9: // SBC imm8
-			str += "SBC #$" + HEX(arg8);
+			//str += "SBC #$" + HEX(arg8);
 
 			arg8 ^= 0xff;
 			tmp16 = (uint16_t)A + (uint16_t)arg8 + GET_FLAG(FLAG_C);
@@ -2159,14 +2158,14 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xea: // NOP
-			str += "NOP";
+			//str += "NOP";
 
 			PC++;
 			CPU_cycles = 2;
 			break;
 
 		case 0xec: // CPX absolute
-			str += "CPX $" + HEX(arg16);
+			//str += "CPX $" + HEX(arg16);
 
 			tmp8_2 = CPU_readMemory1B(arg16);
 
@@ -2183,7 +2182,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xed: // SBC absolute
-			str += "SBC $" + HEX(arg16);
+			//str += "SBC $" + HEX(arg16);
 
 			tmp8 = ~CPU_readMemory1B(arg16);
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -2200,7 +2199,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xee: // INC absolute
-			str += "INC $" + HEX(arg16);
+			//str += "INC $" + HEX(arg16);
 
 			tmp8 = CPU_readMemory1B(arg16) + 1;
 			CPU_writeMemory1B(arg16, tmp8);
@@ -2214,7 +2213,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xf0: // BEQ relative
-			str += "BEQ $" + HEX(arg8);
+			//str += "BEQ $" + HEX(arg8);
 
 			CPU_cycles = 2;
 
@@ -2232,7 +2231,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xf1: // SBC (indirect), Y
-			str += "SBC ($" + HEX(arg8) + "), Y";
+			//str += "SBC ($" + HEX(arg8) + "), Y";
 
 			tmp8 = ~readIndirectIndexedY(arg8, pageBoundaryCrossed);
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -2249,7 +2248,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xf5: // SBC zeropage, X
-			str += "SBC ($" + HEX(arg8) + "), X";
+			//str += "SBC ($" + HEX(arg8) + "), X";
 
 			tmp8 = ~CPU_readMemory1B(zeropageIndexedXAddress(arg8));
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -2266,7 +2265,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xf6: // INC zeropage, X
-			str += "INC $" + HEX(arg8) + ", X";
+			//str += "INC $" + HEX(arg8) + ", X";
 
 			tmp8 = CPU_readMemory1B(zeropageIndexedXAddress(arg8)) + 1;
 			CPU_writeMemory1B(zeropageIndexedXAddress(arg8), tmp8);
@@ -2280,7 +2279,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xf8: // SED
-			str += "SED";
+			//str += "SED";
 
 			SET_FLAG_1(FLAG_D);
 
@@ -2290,7 +2289,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xf9: // SBC absolute, Y
-			str += "SBC ($" + HEX(arg16) + "), Y";
+			//str += "SBC ($" + HEX(arg16) + "), Y";
 
 			tmp8 = ~CPU_readMemory1B(absoluteIndexedYAddress(arg16, pageBoundaryCrossed));
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -2307,7 +2306,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xfd: // SBC absolute, X
-			str += "SBC ($" + HEX(arg16) + "), X";
+			//str += "SBC ($" + HEX(arg16) + "), X";
 
 			tmp8 = ~CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed));
 			tmp16 = (uint16_t)A + (uint16_t)tmp8 + (uint16_t)GET_FLAG(FLAG_C);
@@ -2324,7 +2323,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		case 0xfe: // INC absolute, X
-			str += "INC $" + HEX(arg16) + ", X";
+			//str += "INC $" + HEX(arg16) + ", X";
 
 			tmp8 = CPU_readMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed)) + 1;
 			CPU_writeMemory1B(absoluteIndexedXAddress(arg16, pageBoundaryCrossed), tmp8);
@@ -2338,7 +2337,7 @@ std::string NESEmulator::CPU_cycle()
 			break;
 
 		default:
-			str += "Illegal opcode";
+			//str += "Illegal opcode";
 
 			stopCPU = true;
 
@@ -2350,5 +2349,5 @@ std::string NESEmulator::CPU_cycle()
 
 	}
 
-	return str;
+	//return str;
 };
