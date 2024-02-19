@@ -3,8 +3,7 @@
 #include <iostream>
 #include <Windows.h>
 
-#include "NESEmulator.hpp"
-#include "APUStream.hpp"
+#include "NTSC_NES.hpp"
 
 sf::VideoMode SCREEN = sf::VideoMode::getDesktopMode();
 
@@ -18,10 +17,8 @@ int WinMain(
 	if (__argc != 1 + 1)
 		return 1;
 
-	NESEmulator emu;
-	//emu.powerUp();
+	NTSC_NES emu;
 	emu.loadFromiNES(__argv[0 + 1]);
-	//emu.PC = 0xC000; // nestest.nes in automation
 
 	std::vector<std::string> palettes = { 
 	"Composite Direct (FBX)",
@@ -37,11 +34,11 @@ int WinMain(
 	uint8_t paletteIndex = 7;
 
 	std::string paletteName = palettes[paletteIndex];
-	bool paletteLoaded = emu.loadPaletteFromPAL("resources/" + paletteName + ".pal");
+	bool paletteLoaded = emu.ppu.loadPaletteFromPAL("resources/" + paletteName + ".pal");
 
-	NES_LOG_ADD_LINE(emu, paletteLoaded ? 
-	"Palette loaded (" + paletteName + ")" :
-	("Couldnt find palette \"" + paletteName + "\""));
+	emu.log.push_back(paletteLoaded ?
+		"Palette loaded (" + paletteName + ")" :
+		("Couldnt find palette \"" + paletteName + "\""));
 
 	sf::Font font;
 	font.loadFromFile("resources/font.ttf");
@@ -50,7 +47,6 @@ int WinMain(
 	registers.setString("");
 	sf::Text instructions;
 	instructions.setFont(font);
-	instructions.setPosition(sf::Vector2f(1020, 0));
 
 	updateRegistersText();
 
@@ -65,7 +61,7 @@ int WinMain(
 	int32_t memoryScroll = 0, ppuMemoryScroll = 0;
 
 	uint32_t sDown = 0, fDown = 0, spaceDown = 0, iDown = 0, pDown = 0, 
-			 rDown = 0, /*bDown = 0, */lDown = 0, wDown = 0, f11Down = 0;
+			 rDown = 0, lDown = 0, wDown = 0, f11Down = 0;
 
 	bool running = false;
 
@@ -79,7 +75,6 @@ int WinMain(
 	WindowState windowState = Screen;
 
 	emu.settings.emulateDifferentialPhaseDistortion = false;
-	//emu.settings.printLog = false;
 	emu.settings.blockImpossibleInputs = true;
 
 	bool fullscreen = false;
@@ -153,7 +148,6 @@ int WinMain(
 		HANDLE_KEY(iDown, I)	// one instruction
 		HANDLE_KEY(pDown, P)	// change palette
 		HANDLE_KEY(rDown, R)	// reset
-		//HANDLE_KEY(bDown, B)	// show bg palette
 		HANDLE_KEY(lDown, L)	// change rgb palette
 		HANDLE_KEY(wDown, W)	// change window
 		HANDLE_KEY(f11Down, F11)// toggle fullscreen
@@ -172,25 +166,19 @@ int WinMain(
 			paletteIndex %= palettes.size();
 
 			std::string paletteName = palettes[paletteIndex];
-			bool paletteLoaded = emu.loadPaletteFromPAL("resources/" + paletteName + ".pal");
+			bool paletteLoaded = emu.ppu.loadPaletteFromPAL("resources/" + paletteName + ".pal");
 
-			NES_LOG_ADD_LINE(emu, paletteLoaded ?
+			emu.log.push_back(paletteLoaded ?
 				"Palette loaded (" + paletteName + ")" :
 				("Couldnt find palette \"" + paletteName + "\""));
 		}
-
-		//emu.settings.debugBGPalette ^= (bDown == 1);
 
 		if (spaceDown == 1)
 			running ^= true;
 
 		if (fDown == 1 || running)
 		{
-			while(!emu.frameFinished)
-			//for (uint32_t i = 0; i < 5369318; i++)
-				emu.cycle();
-
-			emu.frameFinished = false;
+			emu.frame();
 
 			updateRegistersText();
 		}
@@ -198,26 +186,16 @@ int WinMain(
 		if (sDown == 1)
 		{
 			emu.cycle();
-
-			emu.frameFinished = false;
+			emu.ppu.frameFinished = false;
 
 			updateRegistersText();
 		}
 
 		if (iDown == 1)
 		{
-			if(!emu.stopCPU)
-			for (unsigned int i = 0; i < 3; i++)
-			{
+			emu.cpu.instruction();
 
-				while (emu.CPU_cycles > 0)
-					emu.cycle();
-				emu.cycle();
-
-				emu.frameFinished = false;
-
-				updateRegistersText();
-			}
+			updateRegistersText();
 		}
 
 		if (pDown == 1)
@@ -246,11 +224,8 @@ int WinMain(
 
 ////////////////////////////////////////////////////////////////
 
-		while (emu.logLines > 32)
-		{
-			emu.log.erase(0, emu.log.find("\n") + 1);
-			emu.logLines--;
-		}
+		while (emu.log.size() > 32)
+			emu.log.erase(emu.log.begin());
 
 		sf::Vector2f ws = (sf::Vector2f)window.getSize();
 
@@ -271,12 +246,28 @@ int WinMain(
 		uint16_t text_y = 10;
 		rect.setFillColor(sf::Color(50, 50, 50));
 		float scrollX = 
-		(LOOPY_GET_COARSE_X(emu.v) * 8 + emu.x + LOOPY_GET_NAMETABLE_X(emu.v) * 256) * nametableSize / 256.f,
+		(LOOPY_GET_COARSE_X(emu.ppu.v) * 8 + emu.ppu.x + LOOPY_GET_NAMETABLE_X(emu.ppu.v) * 256) * nametableSize / 256.f,
 		scrollY = 
-		(LOOPY_GET_COARSE_Y(emu.v) * 8 + LOOPY_GET_FINE_Y(emu.v) + LOOPY_GET_NAMETABLE_Y(emu.v) * 240) * nametableSize / 240.f;
+		(LOOPY_GET_COARSE_Y(emu.ppu.v) * 8 + LOOPY_GET_FINE_Y(emu.ppu.v) + LOOPY_GET_NAMETABLE_Y(emu.ppu.v) * 240) * nametableSize / 240.f;
 
 		switch (windowState)
 		{
+		case Screen:
+			window.setTitle("NES Emulator");
+
+			screen.setOrigin(screenSize / 2.f, screenSize / 2.f);
+			screen.setPosition(sf::Vector2f(ws.x / 2.f, ws.y / 2.f));
+			screenTex.loadFromImage(emu.ppu.screen);
+			screen.setTexture(&screenTex);
+			window.draw(screen);
+
+			FPS_text.setString("FPS: " + std::to_string(int(FPS)));
+			FPS_text.setPosition(10, 10);
+			FPS_text.setCharacterSize(20);
+			window.draw(FPS_text);
+
+			break;
+
 		case CPUDebug:
 			window.setTitle("NES Emulator | CPU Debug");
 
@@ -293,46 +284,18 @@ int WinMain(
 				window.draw(text);
 				for (uint16_t j = 0; j < 8; j++)
 				{
-					text.setString(HEX_1B(emu.CPU_readMemory1B(j + 8 * (i + memoryScroll))));
+					text.setString(HEX_1B(emu.cpu.read_1B(j + 8 * (i + memoryScroll))));
 					text.setPosition(sf::Vector2f(310 + j * 60 + 160.f, i * 40.f));
 					window.draw(text);
 				}
 			}
 
-			instructions.setString(emu.log);
-			window.draw(instructions);
-
-			break;
-
-		case Screen:
-			window.setTitle("NES Emulator");
-
-			screen.setOrigin(screenSize / 2.f, screenSize / 2.f);
-			screen.setPosition(sf::Vector2f(ws.x / 2.f, ws.y / 2.f));
-			screenTex.loadFromImage(emu.screen);
-			screen.setTexture(&screenTex);
-			window.draw(screen);
-
-			FPS_text.setString("FPS: " + std::to_string(int(FPS)));
-			FPS_text.setPosition(10, 10);
-			FPS_text.setCharacterSize(20);
-			window.draw(FPS_text);
-
-			break;
-
-		case PPUDebug_Patterntables:
-			window.setTitle("NES Emulator | PPU Debug | Pattern tables");
-
-			//patternTable.setOrigin(patternTableSize / 2.f, patternTableSize / 2.f);
-			//patternTable.setPosition(sf::Vector2f(ws_ppuDebug_pattern.x / 2.f, ws_ppuDebug_pattern.y / 2.f));
-
-			patternTableTex.loadFromImage(emu.GetPatternTable(0, displayPalette));
-			patternTable.setTexture(&patternTableTex);
-			window.draw(patternTable);
-
-			patternTable.setPosition(sf::Vector2f(patternTableSize, 0));
-			patternTableTex.loadFromImage(emu.GetPatternTable(1, displayPalette));
-			window.draw(patternTable);
+			for (uint16_t i = 0; i < std::min(32, int(emu.log.size())); i++)
+			{
+				instructions.setString(emu.log[i]);
+				instructions.setPosition(sf::Vector2f(1020, i * 40.f));
+				window.draw(instructions);
+			}
 
 			break;
 
@@ -350,7 +313,7 @@ int WinMain(
 				window.draw(text);
 				for (uint8_t j = 0; j < 8; j++)
 				{
-					text.setString(HEX_1B(emu.PPU_readMemory1B(j + 8 * (i + ppuMemoryScroll))));
+					text.setString(HEX_1B(emu.ppu.read_1B(j + 8 * (i + ppuMemoryScroll))));
 					text.setPosition(sf::Vector2f(20 + j * 60 + 160.f, 10 + i * 40.f));
 					window.draw(text);
 				}
@@ -359,13 +322,13 @@ int WinMain(
 			for (uint8_t i = 0; (text_y - 10) / 40 <= 0x17; i++)
 			{
 				text.setString("Sprite $" + HEX_1B(i) + ": Attributes $" +
-					HEX_1B(emu.OAM[i].attributes) + " | Position (" +
-					std::to_string(emu.OAM[i].x) + ", " + std::to_string(emu.OAM[i].y) +
+					HEX_1B(emu.ppu.OAM[i].attributes) + " | Position (" +
+					std::to_string(emu.ppu.OAM[i].x) + ", " + std::to_string(emu.ppu.OAM[i].y) +
 					")");
 
 				//text.setPosition(675, 10 + i * 40.f);
 				text.setPosition(675, text_y);
-				if (!(emu.OAM[i].y >= 240))
+				if (!(emu.ppu.OAM[i].y >= 240))
 				{
 					text_y += 40;
 					window.draw(text);
@@ -374,25 +337,41 @@ int WinMain(
 
 			break;
 
+		case PPUDebug_Patterntables:
+			window.setTitle("NES Emulator | PPU Debug | Pattern tables");
+
+			//patternTable.setOrigin(patternTableSize / 2.f, patternTableSize / 2.f);
+			//patternTable.setPosition(sf::Vector2f(ws_ppuDebug_pattern.x / 2.f, ws_ppuDebug_pattern.y / 2.f));
+
+			patternTableTex.loadFromImage(emu.ppu.GetPatternTable(0, displayPalette));
+			patternTable.setTexture(&patternTableTex);
+			window.draw(patternTable);
+
+			patternTable.setPosition(sf::Vector2f(patternTableSize, 0));
+			patternTableTex.loadFromImage(emu.ppu.GetPatternTable(1, displayPalette));
+			window.draw(patternTable);
+
+			break;
+
 		case PPUDebug_Nametables:
 			window.setTitle("NES Emulator | PPU Debug | Nametables");
 
-			nametableTex.loadFromImage(emu.GetNametable(0));
+			nametableTex.loadFromImage(emu.ppu.GetNametable(0));
 			nametable.setTexture(&nametableTex);
 			window.draw(nametable);
 
 			nametable.setPosition(nametableSize, 0);
-			nametableTex.loadFromImage(emu.GetNametable(1));
+			nametableTex.loadFromImage(emu.ppu.GetNametable(1));
 			nametable.setTexture(&nametableTex);
 			window.draw(nametable);
 
 			nametable.setPosition(0, nametableSize);
-			nametableTex.loadFromImage(emu.GetNametable(2));
+			nametableTex.loadFromImage(emu.ppu.GetNametable(2));
 			nametable.setTexture(&nametableTex);
 			window.draw(nametable);
 
 			nametable.setPosition(nametableSize, nametableSize);
-			nametableTex.loadFromImage(emu.GetNametable(3));
+			nametableTex.loadFromImage(emu.ppu.GetNametable(3));
 			nametable.setTexture(&nametableTex);
 			window.draw(nametable);
 

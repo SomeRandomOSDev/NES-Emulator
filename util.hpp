@@ -38,10 +38,6 @@ namespace
 
 #define PI 3.14159265358979323846f
 
-#define LOG_ADD_LINE(str)		{ log += (std::string) str + "\n"; logLines++; }
-
-#define NES_LOG_ADD_LINE(emulator, str)	{ emulator.log += (std::string) (str) + "\n"; emulator.logLines++; }
-
 #define REG_GET_FLAG(reg, bit)           ((reg >> (bit)) & 1)
 #define REG_SET_FLAG_1(reg, bit)         reg |= (1 << (bit))
 #define REG_SET_FLAG_0(reg, bit)         reg &= ~((uint8_t)(1 << (bit)))
@@ -75,10 +71,6 @@ namespace
 #define IRQ_VECTOR				0xfffe
 #define BRK_VECTOR				IRQ_VECTOR
 
-#define PPU_CTRL				CPU_memory[0x2000]
-#define PPU_MASK				CPU_memory[0x2001]
-#define PPU_STATUS				CPU_memory[0x2002]
-
 #define PPU_STATUS_SPRITE_OVERFLOW 5
 #define PPU_STATUS_SPRITE_0_HIT    6
 #define PPU_STATUS_VBLANK          7
@@ -101,8 +93,6 @@ namespace
 #define PPU_CTRL_MASTER_SLAVE						    6
 #define PPU_CTRL_NMI									7
 
-#define RENDERING_ENABLED           (REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_BG) || REG_GET_FLAG(PPU_MASK, PPU_MASK_SHOW_SPRITES))
-
 #define LOOPY_GET_COARSE_X(reg)		(reg & 0b11111)
 #define LOOPY_GET_COARSE_Y(reg)		((reg >> 5) & 0b11111)
 #define LOOPY_GET_NAMETABLE(reg)	((reg >> 10) & 0b11)
@@ -121,12 +111,12 @@ namespace
 #define OAM_ATTRIBUTES_FLIP_HORIZONTALLY	6
 #define OAM_ATTRIBUTES_FLIP_VERTICALLY		7
 
-#define updateRegistersText() registers.setString("A:  #$" + HEX_1B(emu.A) + "\n" + \
-												  "X:  #$" + HEX_1B(emu.X) + "\n" + \
-												  "Y:  #$" + HEX_1B(emu.Y) + "\n" + \
-												  "SR: #$" + HEX_1B(emu.SR) + "\n" + \
-												  "S:  #$" + HEX_1B(emu.S) + "\n" + \
-												  "PC: #$" + HEX_2B(emu.PC));
+#define updateRegistersText() registers.setString("A:  #$" + HEX_1B(emu.cpu.A) + "\n" + \
+												  "X:  #$" + HEX_1B(emu.cpu.X) + "\n" + \
+												  "Y:  #$" + HEX_1B(emu.cpu.Y) + "\n" + \
+												  "SR: #$" + HEX_1B(emu.cpu.SR) + "\n" + \
+												  "S:  #$" + HEX_1B(emu.cpu.S) + "\n" + \
+												  "PC: #$" + HEX_2B(emu.cpu.PC));
 
 #define HANDLE_KEY(var, key) 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::key)) \
 										var++;									 \
@@ -278,7 +268,6 @@ namespace
 
 	struct EmulationSettings
 	{
-		//bool printLog;
 		bool emulateDifferentialPhaseDistortion; 
 		bool blockImpossibleInputs;
 	};
@@ -301,50 +290,4 @@ namespace
 		uint8_t attributes;
 		uint8_t x;
 	};)
-
-	//struct CPUAddressSpace
-	//{
-	//	uint8_t RAM[2 * KB];
-	//	bool w;
-
-	//	uint8_t read_1B(uint16_t address)
-	//	{
-	//		if (address < 0x2000)
-	//			return RAM[address % (2 * KB)];
-	//		if (address < 0x4000)
-	//		{
-	//			switch (address % 8)
-	//			{
-	//			case 0x0002: // PPU STATUS
-	//			{
-	//				w = false;
-
-	//				uint8_t value = PPU_STATUS;
-
-	//				REG_SET_FLAG_0(PPU_STATUS, PPU_STATUS_VBLANK);
-
-	//				return value;
-	//			}
-
-	//			case 0x0004:
-	//				return *OAMGetByte(OAMAddress);
-
-	//			case 0x0007:	// PPU DATA
-	//				if (address < 0x3f00)
-	//				{
-	//					uint8_t value = ppuReadBuffer;
-	//					ppuReadBuffer = PPU_readMemory1B(v);
-	//					v += REG_GET_FLAG(PPU_CTRL, PPU_CTRL_VRAM_ADDRESS_INCREMENT_DIRECTION) ? 32 : 1;
-	//					return value;
-	//				}
-	//				else
-	//				{
-	//					ppuReadBuffer = PPU_readMemory1B(v);
-	//					v += REG_GET_FLAG(PPU_CTRL, PPU_CTRL_VRAM_ADDRESS_INCREMENT_DIRECTION) ? 32 : 1;
-	//					return ppuReadBuffer;
-	//				}
-	//			}
-	//		}
-	//	}
-	//};
 }
