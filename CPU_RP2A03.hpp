@@ -235,8 +235,6 @@ public:
 		//}
 		else
 			return mapper->CPU_read_1B(address);
-
-		return 0;
 	}
 
 	uint16_t read_2B(uint16_t address)
@@ -392,7 +390,7 @@ public:
 	}
 
 public:
-	uint8_t memory[64 * KB];
+	uint8_t memory[8 * KB];
 
 	uint8_t A, X, Y, SR, S;
 	uint16_t PC;
