@@ -12,7 +12,7 @@
 class PPU_RP2C02G
 {
 public:
-	PPU_RP2C02G(EmulationSettings& _settings) : settings(_settings)
+	PPU_RP2C02G(std::shared_ptr<Mapper>& _mapper, EmulationSettings& _settings) : mapper(_mapper), settings(_settings)
 	{
 		screen.create(256, 240);
 		screen2.create(256, 240);
@@ -23,7 +23,7 @@ public:
 	void powerUp()
 	{
 		memset(&NESPalette[0], 0, 64 * 3);
-		memset(&memory_CHR[0], 0, 0x3000);
+		memset(&memory_nametables[0], 0, 0x1000);
 		memset(&memory_paletteRAM[0], 0, 32);
 		totalCycles = randomAlignment(re);
 		cycles = 0;
@@ -108,12 +108,12 @@ public:
 		address &= 0x3fff;
 
 		// Nametable mirroring
-		if (mirroring == Horizontal)
+		if (mapper->mirroring == Horizontal)
 		{
 			if ((address >= 0x2400 && address < 0x2800) || (address >= 0x2c00 && address < 0x3000))
 				address -= 0x400;
 		}
-		else if (mirroring == Vertical)
+		else if (mapper->mirroring == Vertical)
 		{
 			if (address >= 0x2800 && address < 0x3000)
 				address -= 0x800;
@@ -121,6 +121,7 @@ public:
 
 		if (address >= 0x3000 && address <= 0x3eff) // mirrors of 0x2000 - 0x2eff
 			address -= 0x1000;
+
 		while (address >= 0x3f20) // mirrors of 0x3f00 - 0x3f1f
 			address -= 0x0020;
 
@@ -140,8 +141,11 @@ public:
 	{
 		address = remapAddress(address);
 
-		if (address < 0x3000)
-			return memory_CHR[address];
+		if (address < 0x2000)
+			//return memory_CHR[address];
+			return mapper->PPU_read_1B(address);
+		else if (address < 0x3000)
+			return memory_nametables[address - 0x2000];
 		else
 			return memory_paletteRAM[address - 0x3f00];
 	}
@@ -150,8 +154,11 @@ public:
 	{
 		address = remapAddress(address);
 
-		if (address < 0x3000)
-			memory_CHR[address] = value;
+		if (address < 0x2000)
+			//memory_CHR[address] = value;
+			mapper->PPU_write_1B(address, value);
+		else if (address < 0x3000)
+			memory_nametables[address - 0x2000] = value;
 		else
 			memory_paletteRAM[address - 0x3f00] = value;
 	}
@@ -381,7 +388,7 @@ public:
 	void RenderPixel();
 
 public:
-	uint8_t memory_CHR[0x3000];
+	uint8_t memory_nametables[0x1000];
 	uint8_t memory_paletteRAM[32];
 
 	sf::Image screen, screen2;
@@ -412,7 +419,7 @@ public:
 
 	bool waitForNMI;
 
-	Mirroring mirroring;
+	std::shared_ptr<Mapper>& mapper;
 
 	EmulationSettings& settings;
 };

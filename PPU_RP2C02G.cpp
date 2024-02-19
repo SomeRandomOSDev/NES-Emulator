@@ -255,15 +255,12 @@ void PPU_RP2C02G::RenderPixel()
 	uint8_t bgColor = read_1B(0x3f00);
 	uint8_t spriteColor = 0xff;
 
-	//if (settings.debugBGPalette)
-	//	colorCode = 0;
-
 	bool solidBG = false, solidSpr = false;
 
 	bool sprite0Visible = false;
 
 	RenderBGPixel(bgColor, solidBG);
-	bool spritePriority = false;//REG_GET_FLAG(OAM2[0].attributes, OAM_ATTRIBUTES_SPRITE_PRIORITY);
+	bool spritePriority = false;
 	RenderSpritePixel(spriteColor, solidSpr, spritePriority, sprite0Visible);
 
 	if (spritePriority)
@@ -280,8 +277,6 @@ void PPU_RP2C02G::RenderPixel()
 		else
 			colorCode = spriteColor;
 	}
-
-	//colorCode = spriteColor;
 
 	bool grayscale = REG_GET_FLAG(reg_ppu_mask, PPU_MASK_GRAYSCALE);
 
@@ -307,7 +302,7 @@ void PPU_RP2C02G::RenderPixel()
 
 	screen2.setPixel(cycles, scanline, color);
 
-	if (solidBG && solidSpr && sprite0Visible/* && (PPU_cycles >= 2 && PPU_cycles < 255)*/)
+	if (solidBG && solidSpr && sprite0Visible && (cycles >= 2 && cycles < 255))
 	{
 		REG_SET_FLAG_1(reg_ppu_status, PPU_STATUS_SPRITE_0_HIT);
 		//colorCode = 0x24;

@@ -140,6 +140,8 @@
     <ClCompile Include="APUStream.cpp" />
     <ClCompile Include="CPU_RP2A03.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Mapper.cpp" />
+    <ClCompile Include="Mapper_0.cpp" />
     <ClCompile Include="NTSC_NES.cpp" />
     <ClCompile Include="PPU_RP2C02G.cpp" />
   </ItemGroup>
@@ -147,6 +149,8 @@
     <ClInclude Include="APUStream.hpp" />
     <ClInclude Include="audio.hpp" />
     <ClInclude Include="CPU_RP2A03.hpp" />
+    <ClInclude Include="Mapper.hpp" />
+    <ClInclude Include="Mapper_0.hpp" />
     <ClInclude Include="NTSC_NES.hpp" />
     <ClInclude Include="PPU_RP2C02G.hpp" />
   </ItemGroup>

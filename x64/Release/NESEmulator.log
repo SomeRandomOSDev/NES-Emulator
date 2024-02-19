@@ -1,4 +1,5 @@
 ﻿  main.cpp
+  NTSC_NES.cpp
   Génération de code en cours
   Fin de la génération du code
   NESEmulator.vcxproj -> C:\Users\PC\Desktop\C++\ProjetsVisualStudio\NESEmulator\x64\Release\NESEmulator.exe

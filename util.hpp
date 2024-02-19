@@ -4,6 +4,7 @@
 #include <random>
 #include <algorithm>
 #include <SFML/Graphics.hpp>
+#include "Mapper.hpp"
 
 namespace
 {
@@ -225,20 +226,6 @@ namespace
 	{
 		Background = 0,
 		Sprite	   = 1
-	};
-
-	enum Mapper
-	{
-		Mapper0_NROM_128,
-		Mapper0_NROM_256,
-		Mapper1_MMC1,
-		Other
-	};
-
-	enum Mirroring
-	{
-		Horizontal = 0,
-		Vertical = 1
 	};
 
 	struct iNESHeader // 16B

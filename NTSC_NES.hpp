@@ -3,10 +3,12 @@
 #include "PPU_RP2C02G.hpp"
 #include "CPU_RP2A03.hpp"
 
+#include "Mapper_0.hpp"
+
 class NTSC_NES // NTSC NES with RP2A03/RP2C02G
 {
 public:
-	NTSC_NES() : cpu(ppu, mapper, settings), ppu(settings)
+	NTSC_NES() : cpu(ppu, mapper, settings), ppu(mapper, settings)
 	{
 		powerUp();
 	}
@@ -50,21 +52,28 @@ public:
 		uint32_t CHRROM_location = PRGROM_location + PRGROM_size, CHRROM_size = 8192 * header.CHRROMSize;
 
 		cpu.stopCPU = false;
-		mapper = Other;
+		//mapper = Other;
+		mapper = std::make_shared<Mapper>();
 		switch (mapperNb)
 		{
 		case 0:
-			mapper = header.PRGROMSize == 1 ? Mapper0_NROM_128 : Mapper0_NROM_256;
+		{
+			Mapper_0 mapper0(header.PRGROMSize);
 
-			ppu.mirroring = Mirroring(header.flags6 & 1);
+			mapper0.mirroring = Mirroring(header.flags6 & 1);
 
-			memcpy(&cpu.memory[0x8000], &buffer[PRGROM_location], PRGROM_size);
-			memcpy(&ppu.memory_CHR[0],  &buffer[CHRROM_location], CHRROM_size);
+			memcpy(&mapper0.PRGROM_lo, &buffer[PRGROM_location], 16 * KB);
+			if(header.PRGROMSize == 2)
+				memcpy(&mapper0.PRGROM_hi, &buffer[PRGROM_location + 16 * KB], 16 * KB);
+			memcpy(&mapper0.CHRROM[0],  &buffer[CHRROM_location], 8 * KB);
 
 			log.push_back("Loaded successfully : ");
-			log.push_back("mapper 0 | " + std::string(ppu.mirroring == Horizontal ? "Horizontal" : "Vertical") + " mirroring.");
+			log.push_back("mapper 0 | " + std::string(mapper0.mirroring == Horizontal ? "Horizontal" : "Vertical") + " mirroring.");
+
+			mapper = std::make_shared<Mapper_0>(mapper0);
 
 			break;
+		}
 
 		default:
 			log.push_back("Unknown mapper (mapper " + std::to_string(mapperNb) + ").");
@@ -102,7 +111,7 @@ public:
 	CPU_RP2A03 cpu;
 	PPU_RP2C02G ppu;
 
-	Mapper mapper;
+	std::shared_ptr<Mapper> mapper;
 
 	std::vector<std::string> log;
 	EmulationSettings settings;

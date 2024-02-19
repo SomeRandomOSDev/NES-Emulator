@@ -7,7 +7,7 @@
 class CPU_RP2A03
 {
 public:
-	CPU_RP2A03(PPU_RP2C02G& _ppu, Mapper& _mapper, EmulationSettings& _settings) : ppu(_ppu), mapper(_mapper), settings(_settings)
+	CPU_RP2A03(PPU_RP2C02G& _ppu, std::shared_ptr<Mapper>& _mapper, EmulationSettings& _settings) : ppu(_ppu), mapper(_mapper), settings(_settings)
 	{
 		powerUp();
 	}
@@ -154,22 +154,9 @@ public:
 		else if (address < 0x4020) // APU and I/O functionality that is normally disabled
 			return;
 		// Cartridge space
-		else if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
-		{
-			if (address < 0x8000) // Family BASIC only
-				memory[address] = value; // 8 KB PRG RAM
-
-			//if (address < 0xc000) // First 16 KB of ROM.
-			//	; // memory[address] = value;
-			//if (mapper == Mapper0_NROM_128) // Last 16 KB of ROM (NROM-256) or mirror of $8000-$BFFF (NROM-128).
-			//	; //memory[address - 16384] = value;
-			//if (mapper == Mapper0_NROM_256) // Last 16 KB of ROM (NROM-256) or mirror of $8000-$BFFF (NROM-128).
-			//	; //memory[address] = value;
-			return;
-		}
 		else
 		{
-			//;
+			mapper->CPU_write_1B(address, value);
 			return;
 		}
 	}
@@ -232,20 +219,22 @@ public:
 			return 0;
 
 		// Cartridge space
-		else if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
-		{
-			if (address < 0x8000) // Family BASIC only
-				return memory[address]; // 8 KB PRG RAM
+		//else if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
+		//{
+		//	if (address < 0x8000) // Family BASIC only
+		//		return memory[address]; // 8 KB PRG RAM
 
-			if (address < 0xc000) // First 16 KB of ROM.
-				return memory[address];
-			if (mapper == Mapper0_NROM_128) // Mirror of $8000-$BFFF
-				return memory[address - 16384];
-			if (mapper == Mapper0_NROM_256) // Last 16 KB of ROM (NROM-256)
-				return memory[address];
+		//	if (address < 0xc000) // First 16 KB of ROM.
+		//		return memory[address];
+		//	if (mapper == Mapper0_NROM_128) // Mirror of $8000-$BFFF
+		//		return memory[address - 16384];
+		//	if (mapper == Mapper0_NROM_256) // Last 16 KB of ROM (NROM-256)
+		//		return memory[address];
 
-			return 0;
-		}
+		//	return 0;
+		//}
+		else
+			return mapper->CPU_read_1B(address);
 
 		return 0;
 	}
@@ -415,7 +404,7 @@ public:
 	bool stopCPU;
 
 	PPU_RP2C02G& ppu;
-	Mapper& mapper;
+	std::shared_ptr<Mapper>& mapper;
 
 	EmulationSettings& settings;
 };
