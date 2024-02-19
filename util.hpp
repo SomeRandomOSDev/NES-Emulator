@@ -119,7 +119,7 @@ namespace
 												  "S:  #$" + HEX_1B(emu.cpu.S) + "\n" + \
 												  "PC: #$" + HEX_2B(emu.cpu.PC));
 
-#define HANDLE_KEY(var, key) 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::key)) \
+#define HANDLE_KEY(var, key) 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::key) && window.hasFocus()) \
 										var++;									 \
 									else                                             \
 										var = 0;
