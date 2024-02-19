@@ -1,10 +1,4 @@
-﻿  APU_RP2A03.cpp
-  CPU_RP2A03.cpp
-  Mapper_0.cpp
-  Mapper_2.cpp
-  NTSC_NES.cpp
-  PPU_RP2C02G.cpp
-  main.cpp
+﻿  PPU_RP2C02G.cpp
   Génération de code en cours
   Fin de la génération du code
   NESEmulator.vcxproj -> C:\Users\PC\Desktop\C++\ProjetsVisualStudio\NESEmulator\x64\Release\NESEmulator.exe

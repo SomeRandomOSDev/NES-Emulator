@@ -251,32 +251,32 @@ void PPU_RP2C02G::RenderSpritePixel(uint8_t& colorCode, bool& solidSpr, bool& sp
 
 void PPU_RP2C02G::RenderPixel()
 {
-	uint8_t colorCode;
-	uint8_t bgColor = read_1B(0x3f00);
-	uint8_t spriteColor = 0xff;
+	uint8_t colorCode = read_1B(0x3f00);
+	uint8_t bgColor;
+	uint8_t spriteColor;
 
 	bool solidBG = false, solidSpr = false;
-
 	bool sprite0Visible = false;
+	bool spritePriority = false;
 
 	RenderBGPixel(bgColor, solidBG);
-	bool spritePriority = false;
 	RenderSpritePixel(spriteColor, solidSpr, spritePriority, sprite0Visible);
 
-	if (spritePriority)
-	{
-		if (solidBG)
-			colorCode = bgColor;
+	if(solidBG || solidSpr)
+		if (spritePriority)
+		{
+			if (solidBG)
+				colorCode = bgColor;
+			else if(solidSpr)
+				colorCode = spriteColor;
+		}
 		else
-			colorCode = spriteColor;
-	}
-	else
-	{
-		if (spriteColor == 0xff)
-			colorCode = bgColor;
-		else
-			colorCode = spriteColor;
-	}
+		{
+			if (solidSpr)
+				colorCode = spriteColor;
+			else if(solidBG)
+				colorCode = bgColor;
+		}
 
 	bool grayscale = REG_GET_FLAG(reg_ppu_mask, PPU_MASK_GRAYSCALE);
 
