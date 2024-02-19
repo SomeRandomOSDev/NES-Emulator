@@ -199,12 +199,9 @@ void PPU_RP2C02G::RenderSpritePixel(uint8_t& colorCode, bool& solidSpr, bool& sp
 						colorCode = GetColorCodeFromPalette(palette, Sprite, paletteIndex);
 						//colorCode = palette;
 						spritePriority = REG_GET_FLAG(OAM2[i].attributes, OAM_ATTRIBUTES_SPRITE_PRIORITY);
+						if (sprite0InScanline && (i == sprite0LocationInOAM2))
+							sprite0Visible = true;
 					}
-
-					//if (sprite.sprite0)
-					//	sprite0Visible = true;
-					if (sprite0InScanline && (i == sprite0LocationInOAM2))
-						sprite0Visible = true;
 				}
 			}
 			else // 8x8
@@ -237,12 +234,9 @@ void PPU_RP2C02G::RenderSpritePixel(uint8_t& colorCode, bool& solidSpr, bool& sp
 						//colorCode = palette;
 
 						spritePriority = REG_GET_FLAG(OAM2[i].attributes, OAM_ATTRIBUTES_SPRITE_PRIORITY);
+						if (sprite0InScanline && (i == sprite0LocationInOAM2))
+							sprite0Visible = true;
 					}
-
-					//if (sprite.sprite0)
-					//	sprite0Visible = true;
-					if (sprite0InScanline && (i == sprite0LocationInOAM2))
-						sprite0Visible = true;
 				}
 			}
 		}
