@@ -1,5 +1,6 @@
 ﻿  CPU_RP2A03.cpp
   NTSC_NES.cpp
+  PPU_RP2C02G.cpp
   main.cpp
   Génération de code en cours
   Fin de la génération du code

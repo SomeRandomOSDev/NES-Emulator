@@ -174,7 +174,13 @@ int WinMain(
 		}
 
 		if (spaceDown == 1)
+		{
 			running ^= true;
+			if(running)
+				emu.apu.play();
+			else
+				emu.apu.pause();
+		}
 
 		if (fDown == 1 || running)
 		{

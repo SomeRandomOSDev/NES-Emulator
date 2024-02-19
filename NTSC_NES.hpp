@@ -2,14 +2,17 @@
 
 #include "PPU_RP2C02G.hpp"
 #include "CPU_RP2A03.hpp"
+#include "APU_RP2A03.hpp"
 
 #include "Mapper_0.hpp"
+#include "Mapper_2.hpp"
 
 class NTSC_NES // NTSC NES with RP2A03/RP2C02G
 {
 public:
 	NTSC_NES() : cpu(ppu, mapper, settings), ppu(mapper, settings)
 	{
+		//apu.play();
 		powerUp();
 	}
 
@@ -41,7 +44,8 @@ public:
 		iNESHeader header;
 		memcpy(&header, &buffer[0], /*sizeof(header)*/16 * sizeof(uint8_t));
 
-		uint8_t mapper_lo = (header.flags6 >> 4), mapper_hi = (header.flags7 >> 4);
+		uint8_t mapper_lo = (header.flags6 >> 4), 
+				mapper_hi = (header.flags7 >> 4);
 		uint8_t mapperNb = (mapper_lo | (mapper_hi << 4));
 
 		bool trainer = (header.flags6 >> 2) & 1;
@@ -52,12 +56,14 @@ public:
 		uint32_t CHRROM_location = PRGROM_location + PRGROM_size, CHRROM_size = 8192 * header.CHRROMSize;
 
 		cpu.stopCPU = false;
-		//mapper = Other;
 		mapper = std::make_shared<Mapper>();
+		bool success = false;
 		switch (mapperNb)
 		{
 		case 0:
 		{
+			success = true;
+
 			Mapper_0 mapper0(header.PRGROMSize);
 
 			mapper0.mirroring = Mirroring(header.flags6 & 1);
@@ -67,19 +73,46 @@ public:
 				memcpy(&mapper0.PRGROM_hi, &buffer[PRGROM_location + 16 * KB], 16 * KB);
 			memcpy(&mapper0.CHRROM[0],  &buffer[CHRROM_location], 8 * KB);
 
-			log.push_back("Loaded successfully : ");
-			log.push_back("mapper 0 | " + std::string(mapper0.mirroring == Horizontal ? "Horizontal" : "Vertical") + " mirroring.");
-
 			mapper = std::make_shared<Mapper_0>(mapper0);
 
 			break;
 		}
 
+		case 2:
+		{
+			success = true;
+
+			Mapper_2 mapper2(header.PRGROMSize);
+
+			mapper2.mirroring = Mirroring(header.flags6 & 1);
+
+			uint8_t index = 0;
+			int32_t _PRGROM_size = PRGROM_size;
+			while (_PRGROM_size > 0)
+			{
+				memcpy(&mapper2.PRGROM[index][0], &buffer[PRGROM_location + 16 * KB * index], 16 * KB);
+				_PRGROM_size -= 16 * KB;
+				index++;
+			}
+			memcpy(&mapper2.CHRROM[0], &buffer[CHRROM_location], 8 * KB);
+
+			mapper = std::make_shared<Mapper_2>(mapper2);
+
+			break;
+		}
+
 		default:
-			log.push_back("Unknown mapper (mapper " + std::to_string(mapperNb) + ").");
+			log.push_back("Unknown mapper");
 			cpu.stopCPU = true;
 			break;
 		}
+
+		if (success)
+			log.push_back("Loaded successfully : ");
+		log.push_back("File size : " + std::to_string(buffer.size() / 1024) + " KB");
+		log.push_back("PRG ROM size : " + std::to_string(PRGROM_size / 1024) + " KB");
+		log.push_back("CHR ROM size : " + std::to_string(CHRROM_size / 1024) + " KB");
+		log.push_back("mapper " + std::to_string(mapperNb) + " | " + std::string(mapper->mirroring == Horizontal ? "Horizontal" : "Vertical") + " mirroring.");
 
 		cpu.PC = cpu.read_2B(RESET_VECTOR);
 	}
@@ -110,6 +143,7 @@ public:
 public:
 	CPU_RP2A03 cpu;
 	PPU_RP2C02G ppu;
+	APU_RP2A03 apu;
 
 	std::shared_ptr<Mapper> mapper;
 

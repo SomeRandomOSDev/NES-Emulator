@@ -87,14 +87,14 @@ public:
 		if (OAM2Size < 8)
 		{
 			OAM2[OAM2Size] = OAM[entry];
-			//OAM2[OAM2Size].sprite0 = (entry == 0);
+			if (OAM2[OAM2Size].y < 255)
+				OAM2[OAM2Size].y++;
+
 			if (entry == 0)
 			{
 				sprite0InScanline = true;
 				sprite0LocationInOAM2 = OAM2Size;
 			}
-			//if(OAM2[OAM2Size].y < 255)
-			//	OAM2[OAM2Size].y++;
 			OAM2Size++;
 		}
 		else // TODO: Add the bug
@@ -142,7 +142,6 @@ public:
 		address = remapAddress(address);
 
 		if (address < 0x2000)
-			//return memory_CHR[address];
 			return mapper->PPU_read_1B(address);
 		else if (address < 0x3000)
 			return memory_nametables[address - 0x2000];
@@ -155,7 +154,6 @@ public:
 		address = remapAddress(address);
 
 		if (address < 0x2000)
-			//memory_CHR[address] = value;
 			mapper->PPU_write_1B(address, value);
 		else if (address < 0x3000)
 			memory_nametables[address - 0x2000] = value;

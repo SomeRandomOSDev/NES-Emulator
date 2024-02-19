@@ -23,7 +23,7 @@ void PPU_RP2C02G::cycle()
 			Y_increment();
 	}
 
-	if (cycles == 0) // Wrong sprite evaluation
+	if (cycles == 256) // Wrong sprite evaluation
 	{
 		for (uint8_t i = 0; i < 32; i++)
 			*OAM2GetByte(i) = 0xff;

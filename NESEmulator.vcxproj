@@ -137,20 +137,22 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="APUStream.cpp" />
+    <ClCompile Include="APU_RP2A03.cpp" />
     <ClCompile Include="CPU_RP2A03.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Mapper.cpp" />
     <ClCompile Include="Mapper_0.cpp" />
+    <ClCompile Include="Mapper_2.cpp" />
     <ClCompile Include="NTSC_NES.cpp" />
     <ClCompile Include="PPU_RP2C02G.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="APUStream.hpp" />
+    <ClInclude Include="APU_RP2A03.hpp" />
     <ClInclude Include="audio.hpp" />
     <ClInclude Include="CPU_RP2A03.hpp" />
     <ClInclude Include="Mapper.hpp" />
     <ClInclude Include="Mapper_0.hpp" />
+    <ClInclude Include="Mapper_2.hpp" />
     <ClInclude Include="NTSC_NES.hpp" />
     <ClInclude Include="PPU_RP2C02G.hpp" />
   </ItemGroup>

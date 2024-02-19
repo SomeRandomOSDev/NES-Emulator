@@ -153,7 +153,6 @@ public:
 		}
 		else if (address < 0x4020) // APU and I/O functionality that is normally disabled
 			return;
-		// Cartridge space
 		else
 		{
 			mapper->CPU_write_1B(address, value);
@@ -208,31 +207,18 @@ public:
 			switch (address)
 			{
 			case 0x4016:
+			{
 				uint8_t value = (controller1ShiftRegister & 1);
 				controller1ShiftRegister >>= 1;
 				return value;
 			}
 
-			return 0;
+			default:
+				return 0;
+			}
 		}
 		else if (address < 0x4020) // APU and I/O functionality that is normally disabled
 			return 0;
-
-		// Cartridge space
-		//else if (mapper == Mapper0_NROM_128 || mapper == Mapper0_NROM_256)
-		//{
-		//	if (address < 0x8000) // Family BASIC only
-		//		return memory[address]; // 8 KB PRG RAM
-
-		//	if (address < 0xc000) // First 16 KB of ROM.
-		//		return memory[address];
-		//	if (mapper == Mapper0_NROM_128) // Mirror of $8000-$BFFF
-		//		return memory[address - 16384];
-		//	if (mapper == Mapper0_NROM_256) // Last 16 KB of ROM (NROM-256)
-		//		return memory[address];
-
-		//	return 0;
-		//}
 		else
 			return mapper->CPU_read_1B(address);
 	}

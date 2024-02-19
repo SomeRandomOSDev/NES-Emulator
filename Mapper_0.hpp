@@ -9,7 +9,9 @@ class Mapper_0 :
 public:
 	Mapper_0(uint8_t _PRGROMSize) : PRGROMSize(_PRGROMSize)
     {
-
+		memset(&CHRROM[0], 0, 8 * KB);
+		memset(&PRGROM_lo[0], 0, 16 * KB);
+		memset(&PRGROM_hi[0], 0, 16 * KB);
     }
 
 	void CPU_write_1B(uint16_t address, uint8_t value) override
@@ -43,7 +45,8 @@ public:
 
 	void PPU_write_1B(uint16_t address, uint8_t value) override
 	{ 
-	
+		// CHR RAM if CHRROMSize == 0 but idc
+		CHRROM[address] = value;
 	}
 	uint8_t PPU_read_1B(uint16_t address) override
 	{
