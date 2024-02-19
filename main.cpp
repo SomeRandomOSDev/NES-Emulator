@@ -224,7 +224,7 @@ int WinMain(
 
 ////////////////////////////////////////////////////////////////
 
-		while (emu.log.size() > 32)
+		while (emu.log.size() > 24)
 			emu.log.erase(emu.log.begin());
 
 		sf::Vector2f ws = (sf::Vector2f)window.getSize();
@@ -290,7 +290,7 @@ int WinMain(
 				}
 			}
 
-			for (uint16_t i = 0; i < std::min(32, int(emu.log.size())); i++)
+			for (uint16_t i = 0; i < std::min(24, int(emu.log.size())); i++)
 			{
 				instructions.setString(emu.log[i]);
 				instructions.setPosition(sf::Vector2f(1020, i * 40.f));
