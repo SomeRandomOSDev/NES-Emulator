@@ -6,11 +6,12 @@
 
 #include "Mapper_0.hpp"
 #include "Mapper_2.hpp"
+#include "Mapper_3.hpp"
 
 class NTSC_NES // NTSC NES with RP2A03/RP2C02G
 {
 public:
-	NTSC_NES() : cpu(ppu, mapper, settings), ppu(mapper, settings)
+	NTSC_NES() : cpu(ppu, apu, mapper, settings), ppu(mapper, settings)
 	{
 		//apu.play();
 		powerUp();
@@ -86,17 +87,31 @@ public:
 
 			mapper2.mirroring = Mirroring(header.flags6 & 1);
 
-			uint8_t index = 0;
-			int32_t _PRGROM_size = PRGROM_size;
-			while (_PRGROM_size > 0)
-			{
-				memcpy(&mapper2.PRGROM[index][0], &buffer[PRGROM_location + 16 * KB * index], 16 * KB);
-				_PRGROM_size -= 16 * KB;
-				index++;
-			}
+			for (uint8_t i = 0; i < header.PRGROMSize; i++)
+				memcpy(&mapper2.PRGROM[i][0], &buffer[PRGROM_location + 16 * KB * i], 16 * KB);
+
 			memcpy(&mapper2.CHRROM[0], &buffer[CHRROM_location], 8 * KB);
 
 			mapper = std::make_shared<Mapper_2>(mapper2);
+
+			break;
+		}
+
+		case 3:
+		{
+			success = true;
+
+			Mapper_3 mapper3(header.PRGROMSize, header.CHRROMSize);
+
+			mapper3.mirroring = Mirroring(header.flags6 & 1);
+
+			for (uint8_t i = 0; i < header.CHRROMSize; i++)
+				memcpy(&mapper3.CHRROM[i][0], &buffer[CHRROM_location + 8 * KB * i], 8 * KB);
+
+			memcpy(&mapper3.PRGROM_lo[0], &buffer[PRGROM_location], 16 * KB);
+			memcpy(&mapper3.PRGROM_hi[0], &buffer[PRGROM_location + 16 * KB], 16 * KB);
+
+			mapper = std::make_shared<Mapper_3>(mapper3);
 
 			break;
 		}
@@ -129,6 +144,19 @@ public:
 
 		if((ppu.totalCycles % 3) == 0 && !cpu.stopCPU)
 			cpu.cycle();
+	}
+
+	void instruction()
+	{
+		if (!cpu.stopCPU)
+			for (unsigned int i = 0; i < 3; i++)
+			{
+				while (cpu.cycles > 0)
+					cycle();
+				cycle();
+
+				ppu.frameFinished = false;
+			}
 	}
 
 	void frame()

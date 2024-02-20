@@ -246,8 +246,8 @@ void PPU_RP2C02G::RenderSpritePixel(uint8_t& colorCode, bool& solidSpr, bool& sp
 void PPU_RP2C02G::RenderPixel()
 {
 	uint8_t colorCode = read_1B(0x3f00);
-	uint8_t bgColor;
-	uint8_t spriteColor;
+	uint8_t bgColor = 0x00;
+	uint8_t spriteColor = 0x00;
 
 	bool solidBG = false, solidSpr = false;
 	bool sprite0Visible = false;

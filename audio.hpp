@@ -51,7 +51,15 @@ namespace
 			f += SineWave_Approx_2(i * j, frequency, amplitude / j);
 		for (uint8_t j = 1; j <= harmonics; j++)
 			g += SineWave_Approx_2((i + duty) * j, frequency, amplitude / j);
-		float r = -1.575f - (f - g - 3.15f * duty);
+		float r = f - g;
 		return sf::Int16(r);
 	}
+
+	struct PulseWave
+	{
+		float frequency;		//	fCPU / (16 × (t + 1))
+		uint16_t t;	
+		float duty;
+		float volume;
+	};
 }

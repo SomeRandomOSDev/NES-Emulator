@@ -8,7 +8,6 @@ class APU_RP2A03 : public sf::SoundStream
 public:
     APU_RP2A03()
     {
-        frequency = 350;
         t = 0;
         initialize(1, 44100);
     }
@@ -20,22 +19,30 @@ private:
         return true;
     }
 
+    sf::Int16 Pulse_1(float x)
+    {
+        pulse_1.frequency = 1789773.f / (16 * (pulse_1.t + 1));
+        sf::Int16 sample = SquareWave(x, pulse_1.frequency, pulse_1.duty, 10, pulse_1.volume);
+        if (t < 8)
+            sample = 0;
+        return sample;
+    }
+
     virtual bool onGetData(Chunk& chunk)
     {
         samples.clear();
         for (uint16_t i = 0; i < 44100 / 60; i++)
         {
-            float x = t + i * frequency;
+            float x = float(t + i);
             sf::Int16 sample = 0;
-            //sample = SineWave_Approx_2(x, 1, 0.5f);
-            //sample = SquareWave(x, 1, 0.5f, 20, 0.5f);
+            sample += Pulse_1(x);
             samples.push_back(sample);
         }
 
         chunk.samples = &samples[0];
         chunk.sampleCount = samples.size();
 
-        t += uint64_t(frequency * 44100 / 60);
+        t += uint64_t(44100 / 60);
 
         return true;
     }
@@ -49,5 +56,5 @@ private:
     std::vector<sf::Int16> samples;
 
 public:
-    float frequency;
+    PulseWave pulse_1;
 };

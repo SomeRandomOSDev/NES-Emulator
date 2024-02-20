@@ -3,11 +3,13 @@
 #include "util.hpp"
 
 #include "PPU_RP2C02G.hpp"
+#include "APU_RP2A03.hpp"
 
 class CPU_RP2A03
 {
 public:
-	CPU_RP2A03(PPU_RP2C02G& _ppu, std::shared_ptr<Mapper>& _mapper, EmulationSettings& _settings) : ppu(_ppu), mapper(_mapper), settings(_settings)
+	CPU_RP2A03(PPU_RP2C02G& _ppu, APU_RP2A03& _apu, std::shared_ptr<Mapper>& _mapper, EmulationSettings& _settings) : 
+	ppu(_ppu), apu(_apu), mapper(_mapper), settings(_settings)
 	{
 		powerUp();
 	}
@@ -130,6 +132,33 @@ public:
 		{
 			switch (address)
 			{
+			case 0x4000:
+			{
+				uint8_t duty = (value >> 6);
+				float volume = (value & 0x0f) / 15.f;
+
+				apu.pulse_1.volume = volume;
+
+				if (duty == 0)
+					apu.pulse_1.duty = 0.125f;
+				else
+					apu.pulse_1.duty = 0.25f * duty;
+
+				break;
+			}
+
+			case 0x4002:
+				apu.pulse_1.t &= 0x0700;
+				apu.pulse_1.t |= value;
+
+				break;
+
+			case 0x4003:
+				apu.pulse_1.t &= 0x00ff;
+				apu.pulse_1.t |= ((value & 0b111) << 8);
+
+				break;
+
 			case 0x4014:	// OAM DMA
 				for (unsigned int i = 0; i < 256; i++)
 				{
@@ -361,20 +390,6 @@ public:
 
 	void cycle();
 
-	void instruction()
-	{
-		if (!stopCPU)
-			for (unsigned int i = 0; i < 3; i++)
-			{
-
-				while (cycles > 0)
-					cycle();
-				cycle();
-
-				ppu.frameFinished = false;
-			}
-	}
-
 public:
 	uint8_t memory[8 * KB];
 
@@ -387,6 +402,7 @@ public:
 
 	bool stopCPU;
 
+	APU_RP2A03& apu;
 	PPU_RP2C02G& ppu;
 	std::shared_ptr<Mapper>& mapper;
 

@@ -9,7 +9,7 @@ class Mapper_0 :
 public:
 	Mapper_0(uint8_t _PRGROMSize) : PRGROMSize(_PRGROMSize)
     {
-		memset(&CHRROM[0], 0, 8 * KB);
+		memset(&CHRROM[0],    0, 8 * KB);
 		memset(&PRGROM_lo[0], 0, 16 * KB);
 		memset(&PRGROM_hi[0], 0, 16 * KB);
     }

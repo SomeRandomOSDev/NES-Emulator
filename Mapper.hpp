@@ -7,7 +7,10 @@ namespace
 	enum Mirroring
 	{
 		Horizontal = 0,
-		Vertical = 1
+		Vertical = 1,
+		SingleScreen_Left,
+		SingleScreen_Right,
+		FourScreen
 	};
 }
 

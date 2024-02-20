@@ -199,7 +199,7 @@ int WinMain(
 
 		if (iDown == 1)
 		{
-			emu.cpu.instruction();
+			emu.instruction();
 
 			updateRegistersText();
 		}
