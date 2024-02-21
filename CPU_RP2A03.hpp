@@ -136,8 +136,15 @@ public:
 			{
 				uint8_t duty = (value >> 6);
 				float volume = (value & 0x0f) / 15.f;
+				bool constantVolume = (value >> 4) & 1;
+				bool loop = (value >> 5) & 1;
+
+				if (!constantVolume)
+					volume = 1;
 
 				apu.pulse_1.volume = volume;
+				apu.pulse_1.constantVolume = constantVolume;
+				apu.pulse_1.envelopeLoop = loop;
 
 				if (duty == 0)
 					apu.pulse_1.duty = 0.125f;
@@ -147,15 +154,92 @@ public:
 				break;
 			}
 
+			case 0x4001:
+			{
+				bool enabled = (value >> 7);
+				uint8_t sweepPeriod = ((value >> 4) & 0b111) + 1;
+				bool negate = (value >> 3) & 1;
+				uint8_t shiftCount = value & 0b111;
+
+				apu.pulse_1.sweepEnabled = enabled;
+				apu.pulse_1.sweepPeriod = sweepPeriod;
+				apu.pulse_1.sweepShiftCount = shiftCount;
+				apu.pulse_1.sweepNegate = negate;
+
+				break;
+			}
+
 			case 0x4002:
 				apu.pulse_1.t &= 0x0700;
 				apu.pulse_1.t |= value;
+
+				apu.pulse_1.frequency = 1789773.f / (16 * (apu.pulse_1.t + 1));
 
 				break;
 
 			case 0x4003:
 				apu.pulse_1.t &= 0x00ff;
 				apu.pulse_1.t |= ((value & 0b111) << 8);
+
+				apu.pulse_1.frequency = 1789773.f / (16 * (apu.pulse_1.t + 1));
+
+				apu.pulse_1.lengthCounter = (value >> 3);
+				apu.pulse_1.volume = 1;
+
+				break;
+
+			case 0x4004:
+			{
+				uint8_t duty = (value >> 6);
+				float volume = (value & 0x0f) / 15.f;
+				bool constantVolume = (value >> 4) & 1;
+				bool loop = (value >> 5) & 1;
+
+				if (!constantVolume)
+					volume = 1;
+
+				apu.pulse_2.volume = volume;
+				apu.pulse_2.constantVolume = constantVolume;
+				apu.pulse_2.envelopeLoop = loop;
+
+				if (duty == 0)
+					apu.pulse_2.duty = 0.125f;
+				else
+					apu.pulse_2.duty = 0.25f * duty;
+
+				break;
+			}
+
+			case 0x4005:
+			{
+				bool enabled = (value >> 7);
+				uint8_t sweepPeriod = ((value >> 4) & 0b111) + 1;
+				bool negate = (value >> 3) & 1;
+				uint8_t shiftCount = value & 0b111;
+
+				apu.pulse_2.sweepEnabled = enabled;
+				apu.pulse_2.sweepPeriod = sweepPeriod;
+				apu.pulse_2.sweepShiftCount = shiftCount;
+				apu.pulse_2.sweepNegate = negate;
+
+				break;
+			}
+
+			case 0x4006:
+				apu.pulse_2.t &= 0x0700;
+				apu.pulse_2.t |= value;
+
+				apu.pulse_2.frequency = 1789773.f / (16 * (apu.pulse_2.t + 1));
+
+				break;
+
+			case 0x4007:
+				apu.pulse_2.t &= 0x00ff;
+				apu.pulse_2.t |= ((value & 0b111) << 8);
+
+				apu.pulse_2.frequency = 1789773.f / (16 * (apu.pulse_2.t + 1));
+				apu.pulse_2.lengthCounter = (value >> 3);
+				apu.pulse_2.volume = 1;
 
 				break;
 
@@ -172,9 +256,32 @@ public:
 
 				break;
 
+			case 0x4015:
+			{
+				bool DMC = (value >> 4) & 1;
+				bool noise = (value >> 3) & 1;
+				bool triangle = (value >> 2) & 1;
+				bool pulse_2 = (value >> 1) & 1;
+				bool pulse_1 = value & 1;
+
+				apu.pulse_1.enable = pulse_1;
+				apu.pulse_2.enable = pulse_2;
+
+				break;
+			}
+
 			case 0x4016:
 				controllerLatch1 = (value & 1);
 
+				break;
+
+			case 0x4017:
+				apu.frameCounterMode = (value >> 7);
+				apu.interruptInhibit = (value >> 6) & 1;
+
+				break;
+
+			default:
 				break;
 			}
 
@@ -235,6 +342,9 @@ public:
 		{
 			switch (address)
 			{
+			case 0x4015:
+				return (apu.frameInterrupt << 6) | ((apu.pulse_2.lengthCounter > 0) << 1) | (apu.pulse_1.lengthCounter > 0);
+
 			case 0x4016:
 			{
 				uint8_t value = (controller1ShiftRegister & 1);
@@ -243,6 +353,7 @@ public:
 			}
 
 			default:
+
 				return 0;
 			}
 		}
@@ -301,6 +412,20 @@ public:
 			PC = read_2B(NMI_VECTOR);
 
 			cycles = 8;
+		}
+	}
+
+	void IRQ()
+	{
+		if (!GET_FLAG(FLAG_I) && !stopCPU)
+		{
+			push_2B(PC);
+			REG_SET_FLAG_1(SR, FLAG_I);
+			push_1B(SR);
+
+			PC = read_2B(IRQ_VECTOR);
+
+			cycles = 7;
 		}
 	}
 

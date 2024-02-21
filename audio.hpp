@@ -5,9 +5,9 @@
 
 namespace
 {
-	sf::Int16 SineWave(float i, float frequency, float amplitude)
+	float SineWave(float i, float frequency, float amplitude)
 	{
-		return sf::Int16(32767 * amplitude * sin(2 * PI * i * frequency / 44100.f));
+		return float(amplitude * sin(2 * PI * i * frequency / 44100.f));
 	}
 
 	float sine_approx_half(float t)
@@ -27,23 +27,47 @@ namespace
 		return 16 * (0.5f - t);// 0.405 * (PI - t);
 	}
 
-	float sine_approx_2(float x)
+	inline float sine_approx_2(float x)
 	{
 		x -= (int)x;
 		return (x < 0.5f ? sine_approx_2_half(x) : -sine_approx_2_half(x - 0.5f));
 	}
 
-	sf::Int16 SineWave_Approx(float i, float frequency, float amplitude)
+	inline float SineWave_Approx(const float i, const float frequency, const float amplitude)
 	{
-		return sf::Int16(32767 * amplitude * sine_approx(i * frequency / 44100.f));
+		return float(amplitude * sine_approx(i * frequency / 44100.f));
 	}
 
-	sf::Int16 SineWave_Approx_2(float i, float frequency, float amplitude)
+	inline float SineWave_Approx_2(const float i, const float frequency, const float amplitude)
 	{
-		return sf::Int16(32767 * amplitude * sine_approx(i * frequency / 44100.f));
+		return float(amplitude * sine_approx_2(i * frequency / 44100.f));
 	}
 
-	sf::Int16 SquareWave(float i, float frequency, float duty, uint8_t harmonics, float amplitude)
+	float PulseWave(const float i, const float frequency, const float duty, const uint8_t harmonics, const float amplitude)
+	{
+		float f = 0, g = 0;
+
+		for (uint8_t j = 1; j <= harmonics; j++)
+			f += SineWave(i * j, frequency, amplitude / j);
+		for (uint8_t j = 1; j <= harmonics; j++)
+			g += SineWave((i + duty) * j, frequency, amplitude / j);
+		float r = f - g;
+		return r;
+	}
+
+	float PulseWave_Approx(const float i, const float frequency, const float duty, const uint8_t harmonics, const float amplitude)
+	{
+		float f = 0, g = 0;
+
+		for (uint8_t j = 1; j <= harmonics; j++)
+			f += SineWave_Approx(i * j, frequency, amplitude / j);
+		for (uint8_t j = 1; j <= harmonics; j++)
+			g += SineWave_Approx((i + duty) * j, frequency, amplitude / j);
+		float r = f - g;
+		return r;
+	}
+
+	float PulseWave_Approx_2(const float i, const float frequency, const float duty, const uint8_t harmonics, const float amplitude)
 	{
 		float f = 0, g = 0;
 
@@ -52,14 +76,46 @@ namespace
 		for (uint8_t j = 1; j <= harmonics; j++)
 			g += SineWave_Approx_2((i + duty) * j, frequency, amplitude / j);
 		float r = f - g;
-		return sf::Int16(r);
+		return r;
 	}
 
-	struct PulseWave
+	// \frac{8}{\pi^{2}}\sum_{i=0}^{N-1}\left(\left(-1\right)^{i}n^{-2}\sin\left(2\pi f_{0}nt\right)\right)
+	float TriangleWave(const float x, const float frequency, const uint8_t harmonics, const float amplitude)
+	{
+		float sum = 0;
+
+		float sign = 1;
+		for (uint8_t i = 0; i < harmonics; i++)
+		{
+			const float n = float(2 * i + 1);
+
+			sum += sign * (1 / sqr(n)) * sin(2 * PI * frequency * n * x);
+
+			sign *= -1;
+		}
+
+		return sum * 8.f / sqr(PI);
+	}
+
+	struct PulseWaveSequencer
 	{
 		float frequency;		//	fCPU / (16 × (t + 1))
 		uint16_t t;	
+		uint8_t lengthCounter;
 		float duty;
 		float volume;
+		bool enable;
+		bool lengthCounterHalt;
+
+		bool constantVolume;
+		bool envelopeLoop;
+
+		bool sweepEnabled;
+		uint8_t sweepPeriod;
+		uint16_t sweepTargetPeriod;
+		uint8_t sweepShiftCount;
+		bool sweepNegate;
 	};
+
+#define lengthCounterHalt envelopeLoop
 }

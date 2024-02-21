@@ -124,6 +124,7 @@ public:
 
 		if (success)
 			log.push_back("Loaded successfully : ");
+
 		log.push_back("File size : " + std::to_string(buffer.size() / 1024) + " KB");
 		log.push_back("PRG ROM size : " + std::to_string(PRGROM_size / 1024) + " KB");
 		log.push_back("CHR ROM size : " + std::to_string(CHRROM_size / 1024) + " KB");
@@ -143,7 +144,18 @@ public:
 		}
 
 		if((ppu.totalCycles % 3) == 0 && !cpu.stopCPU)
+		{
+			if (apu.frameInterrupt)
+			{
+				cpu.IRQ();
+				apu.frameInterrupt = 0;
+			}
+
 			cpu.cycle();
+		}
+
+		if ((ppu.totalCycles % 6) == 0)
+			apu.cycle();
 	}
 
 	void instruction()
