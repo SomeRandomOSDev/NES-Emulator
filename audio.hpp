@@ -96,26 +96,4 @@ namespace
 
 		return sum * 8.f / sqr(PI);
 	}
-
-	struct PulseWaveSequencer
-	{
-		float frequency;		//	fCPU / (16 × (t + 1))
-		uint16_t t;	
-		uint8_t lengthCounter;
-		float duty;
-		float volume;
-		bool enable;
-		bool lengthCounterHalt;
-
-		bool constantVolume;
-		bool envelopeLoop;
-
-		bool sweepEnabled;
-		uint8_t sweepPeriod;
-		uint16_t sweepTargetPeriod;
-		uint8_t sweepShiftCount;
-		bool sweepNegate;
-	};
-
-#define lengthCounterHalt envelopeLoop
 }

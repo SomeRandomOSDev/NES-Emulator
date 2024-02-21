@@ -2,6 +2,9 @@
 
 #include <SFML/Audio.hpp>
 #include "audio.hpp"
+#include "util.hpp"
+
+#define COMPUTE_FREQUENCY(channel) channel.frequency = 1789773.f / (16 * (channel.t + 1));
 
 #define HANDLE_SWEEP(channel)   if (channel.sweepEnabled && !(channel.sweepShiftCount == 0)) \
                                 { \
@@ -13,7 +16,7 @@
                                     else if (channel.sweepTargetPeriod > channel.t) \
                                     { \
                                         if ((t % channel.sweepPeriod) == 0) \
-                                            channel.t++; \
+                                            channel.t--; \
                                     } \
                                 }
 
@@ -80,17 +83,13 @@ private:
     float Pulse_1(float x)
     {
         float sample = PulseWave_Approx(x, pulse_1.frequency, pulse_1.duty, squareWaveHarmonics, pulse_1.volume);
-        if (pulse_1.t < 8)
-            sample = 0;
-        return sample * !(pulse_1.lengthCounter == 0 && pulse_1.constantVolume);
+        return sample * (pulse_1.t >= 8) * (pulse_1.lengthCounter > 0 || !pulse_1.constantVolume);
     }
 
     float Pulse_2(float x)
     {
         float sample = PulseWave_Approx(x, pulse_2.frequency, pulse_2.duty, squareWaveHarmonics, pulse_2.volume);
-        if (pulse_2.t < 8)
-            sample = 0;
-        return sample * !(pulse_2.lengthCounter == 0 && pulse_2.constantVolume);
+        return sample * (pulse_2.t >= 8) * (pulse_2.lengthCounter > 0 || !pulse_2.constantVolume);
     }
 
     float PulseMix(float sum)
@@ -134,30 +133,28 @@ private:
 
     void halfFrame()
     {
-        //int16_t changeAmount = (pulse_1.t >> pulse_1.sweepShiftCount);
-        //if (pulse_1.sweepNegate)
-        //    changeAmount = -changeAmount - 1;
-        //uint16_t targetPeriod = std::max(0, pulse_1.t + changeAmount);
-        //pulse_1.sweepTargetPeriod = targetPeriod;
+        int16_t changeAmount = (pulse_1.t >> pulse_1.sweepShiftCount);
+        if (pulse_1.sweepNegate)
+            changeAmount = -changeAmount - 1;
+        uint16_t targetPeriod = std::max(0, pulse_1.t + changeAmount);
+        pulse_1.sweepTargetPeriod = targetPeriod;
 
-        //changeAmount = (pulse_2.t >> pulse_2.sweepShiftCount);
-        //if (pulse_2.sweepNegate)
-        //    changeAmount = -changeAmount;
-        //targetPeriod = std::max(0, pulse_2.t + changeAmount);
-        //pulse_2.sweepTargetPeriod = targetPeriod;
+        changeAmount = (pulse_2.t >> pulse_2.sweepShiftCount);
+        if (pulse_2.sweepNegate)
+            changeAmount = -changeAmount;
+        targetPeriod = std::max(0, pulse_2.t + changeAmount);
+        pulse_2.sweepTargetPeriod = targetPeriod;
 
-        //HANDLE_SWEEP(pulse_1);
-        //HANDLE_SWEEP(pulse_2);
+        HANDLE_SWEEP(pulse_1);
+        HANDLE_SWEEP(pulse_2);
 
-        if (pulse_1.t > 0)
-            pulse_1.t--;
-        if (pulse_2.t > 0)
-            pulse_2.t--;
+        COMPUTE_FREQUENCY(pulse_1);
+        COMPUTE_FREQUENCY(pulse_2);
 
-        //if (pulse_1.lengthCounter > 0 && (!pulse_1.lengthCounterHalt) && pulse_1.constantVolume)
-        //    pulse_1.lengthCounter--;
-        //if (pulse_2.lengthCounter > 0 && (!pulse_2.lengthCounterHalt) && pulse_2.constantVolume)
-        //    pulse_2.lengthCounter--;
+        if (pulse_1.lengthCounter > 0 && (!pulse_1.lengthCounterHalt) && pulse_1.constantVolume)
+            pulse_1.lengthCounter--;
+        if (pulse_2.lengthCounter > 0 && (!pulse_2.lengthCounterHalt) && pulse_2.constantVolume)
+            pulse_2.lengthCounter--;
 
         pulse_1.lengthCounter *= pulse_1.enable;
         pulse_2.lengthCounter *= pulse_2.enable;

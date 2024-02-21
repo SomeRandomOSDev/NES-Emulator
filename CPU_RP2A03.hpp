@@ -173,17 +173,13 @@ public:
 				apu.pulse_1.t &= 0x0700;
 				apu.pulse_1.t |= value;
 
-				apu.pulse_1.frequency = 1789773.f / (16 * (apu.pulse_1.t + 1));
-
 				break;
 
 			case 0x4003:
 				apu.pulse_1.t &= 0x00ff;
 				apu.pulse_1.t |= ((value & 0b111) << 8);
 
-				apu.pulse_1.frequency = 1789773.f / (16 * (apu.pulse_1.t + 1));
-
-				apu.pulse_1.lengthCounter = (value >> 3);
+				apu.pulse_1.lengthCounter = APU_LengthLookup[value >> 3];
 				apu.pulse_1.volume = 1;
 
 				break;
@@ -229,16 +225,13 @@ public:
 				apu.pulse_2.t &= 0x0700;
 				apu.pulse_2.t |= value;
 
-				apu.pulse_2.frequency = 1789773.f / (16 * (apu.pulse_2.t + 1));
-
 				break;
 
 			case 0x4007:
 				apu.pulse_2.t &= 0x00ff;
 				apu.pulse_2.t |= ((value & 0b111) << 8);
 
-				apu.pulse_2.frequency = 1789773.f / (16 * (apu.pulse_2.t + 1));
-				apu.pulse_2.lengthCounter = (value >> 3);
+				apu.pulse_2.lengthCounter = APU_LengthLookup[value >> 3];
 				apu.pulse_2.volume = 1;
 
 				break;
